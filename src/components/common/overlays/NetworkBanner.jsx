@@ -38,7 +38,7 @@ const NetworkBanner = ({ visible, onClose }) => {
       <div className="max-w-screen-xl mx-auto px-8 py-4 flex items-center justify-between">
         <div className="flex items-center flex-grow">
           <WifiOffIcon className="w-6 h-6 text-white mr-3" />
-          <p className="text-white text-[20px] font-[560] tracking-tight">
+          <p className="text-white text-[length:calc(var(--text-scale)*20px)] font-[560] tracking-tight">
             Network connection lost. Ensure mobile hotspot is enabled.
           </p>
         </div>

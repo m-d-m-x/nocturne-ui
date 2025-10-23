@@ -102,7 +102,7 @@ export default function StatusBar() {
       } items-start`}
     >
       <div
-        className="text-[26px] font-[580] text-white tracking-tight leading-none"
+        className="text-[length:calc(var(--text-scale)*26px)] font-[580] text-white tracking-tight leading-none"
         style={{ margin: 0, padding: 0, marginTop: "-1px" }}
       >
         {currentTime}

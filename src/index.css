@@ -27,6 +27,10 @@ body {
     sans-serif;
 }
 
+:root {
+  --text-scale: 1;
+}
+
 * {
   user-select: none;
   cursor: none !important;

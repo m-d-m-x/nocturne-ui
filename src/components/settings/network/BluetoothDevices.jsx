@@ -101,10 +101,10 @@ const BluetoothDevices = () => {
     if (devices.length === 0) {
       return (
         <div className="bg-white/10 rounded-xl p-8 text-center border border-white/10">
-          <p className="text-[32px] font-[580] text-white tracking-tight">
+          <p className="text-[length:calc(var(--text-scale)*32px)] font-[580] text-white tracking-tight">
             No Devices Found
           </p>
-          <p className="text-[24px] font-[560] text-white/60 tracking-tight mt-2">
+          <p className="text-[length:calc(var(--text-scale)*24px)] font-[560] text-white/60 tracking-tight mt-2">
             Connect to "Nocturne" in your phone's Bluetooth settings.
           </p>
         </div>
@@ -131,11 +131,11 @@ const BluetoothDevices = () => {
       >
         <div className="flex justify-between items-center">
           <div className="min-w-0 flex-1">
-            <h4 className="text-[28px] font-[580] text-white tracking-tight truncate pr-4">
+            <h4 className="text-[length:calc(var(--text-scale)*28px)] font-[580] text-white tracking-tight truncate pr-4">
               {device.name || device.alias}
             </h4>
             {device.connected && (
-              <p className="text-[24px] font-[560] text-white/60 tracking-tight mt-1">
+              <p className="text-[length:calc(var(--text-scale)*24px)] font-[560] text-white/60 tracking-tight mt-1">
                 Connected
               </p>
             )}
@@ -144,7 +144,7 @@ const BluetoothDevices = () => {
             onClick={(e) => handleButtonClick(e, device)}
             className="bg-white/10 hover:bg-white/20 transition-colors duration-200 rounded-xl px-6 py-3 min-w-[160px] border border-white/10"
           >
-            <span className="text-[24px] font-[580] text-white tracking-tight">
+            <span className="text-[length:calc(var(--text-scale)*24px)] font-[580] text-white tracking-tight">
               {device.connected ? "Disconnect" : "Connect"}
             </span>
           </button>
@@ -155,7 +155,7 @@ const BluetoothDevices = () => {
 
   return (
     <div className="space-y-4" data-bluetooth-settings>
-      <h3 className="text-[32px] font-[580] text-white tracking-tight">
+      <h3 className="text-[length:calc(var(--text-scale)*32px)] font-[580] text-white tracking-tight">
         Devices
       </h3>
 
@@ -188,12 +188,12 @@ const BluetoothDevices = () => {
                   <div className="text-center">
                     <DialogTitle
                       as="h3"
-                      className="text-[36px] font-[560] tracking-tight text-white"
+                      className="text-[length:calc(var(--text-scale)*36px)] font-[560] tracking-tight text-white"
                     >
                       Forget Device?
                     </DialogTitle>
                     <div className="mt-2">
-                      <p className="text-[28px] font-[560] tracking-tight text-white/60">
+                      <p className="text-[length:calc(var(--text-scale)*28px)] font-[560] tracking-tight text-white/60">
                         Pair this device again to use it.
                       </p>
                     </div>
@@ -206,14 +206,14 @@ const BluetoothDevices = () => {
                       setShowForgetDialog(false);
                       setSelectedDevice(null);
                     }}
-                    className="inline-flex w-full justify-center px-3 py-3 text-[28px] font-[560] tracking-tight text-[#6c8bd5] shadow-sm sm:col-start-1 border-r border-slate-100/25 bg-transparent hover:bg-white/5 focus:outline-none"
+                    className="inline-flex w-full justify-center px-3 py-3 text-[length:calc(var(--text-scale)*28px)] font-[560] tracking-tight text-[#6c8bd5] shadow-sm sm:col-start-1 border-r border-slate-100/25 bg-transparent hover:bg-white/5 focus:outline-none"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     onClick={handleForget}
-                    className="mt-3 inline-flex w-full justify-center px-3 py-3 text-[28px] font-[560] tracking-tight text-[#fe3b30] shadow-sm sm:col-start-2 sm:mt-0 bg-transparent hover:bg-white/5 focus:outline-none"
+                    className="mt-3 inline-flex w-full justify-center px-3 py-3 text-[length:calc(var(--text-scale)*28px)] font-[560] tracking-tight text-[#fe3b30] shadow-sm sm:col-start-2 sm:mt-0 bg-transparent hover:bg-white/5 focus:outline-none"
                   >
                     Forget
                   </button>

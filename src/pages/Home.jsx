@@ -294,7 +294,7 @@ export default function Home({
                 </div>
 
                 <h4
-                  className="mt-2 text-[36px] font-[580] text-white truncate tracking-tight max-w-[280px]"
+                  className="mt-2 text-[length:calc(var(--text-scale)*36px)] font-[580] text-white truncate tracking-tight max-w-[280px]"
                   onClick={() =>
                     album.type !== "local-track" &&
                     onOpenContent(
@@ -308,20 +308,20 @@ export default function Home({
 
                 {album.type === "show"
                   ? album.publisher && (
-                      <h4 className="text-[32px] font-[560] text-white/60 truncate tracking-tight max-w-[280px]">
-                        {album.publisher}
-                      </h4>
-                    )
+                    <h4 className="text-[length:calc(var(--text-scale)*32px)] font-[560] text-white/60 truncate tracking-tight max-w-[280px]">
+                      {album.publisher}
+                    </h4>
+                  )
                   : album.artists?.[0] && (
-                      <h4
-                        className="text-[32px] font-[560] text-white/60 truncate tracking-tight max-w-[280px]"
-                        onClick={() =>
-                          onOpenContent(album.artists[0].id, "artist")
-                        }
-                      >
-                        {album.artists.map((artist) => artist.name).join(", ")}
-                      </h4>
-                    )}
+                    <h4
+                      className="text-[length:calc(var(--text-scale)*32px)] font-[560] text-white/60 truncate tracking-tight max-w-[280px]"
+                      onClick={() =>
+                        onOpenContent(album.artists[0].id, "artist")
+                      }
+                    >
+                      {album.artists.map((artist) => artist.name).join(", ")}
+                    </h4>
+                  )}
               </div>
             ))
           ) : (
@@ -364,12 +364,12 @@ export default function Home({
               />
             </div>
             <h4
-              className="mt-2 text-[36px] font-[580] text-white truncate tracking-tight max-w-[280px]"
+              className="mt-2 text-[length:calc(var(--text-scale)*36px)] font-[580] text-white truncate tracking-tight max-w-[280px]"
               onClick={() => onOpenContent("liked", "liked-songs")}
             >
               {likedSongs.name}
             </h4>
-            <h4 className="text-[32px] font-[560] text-white/60 truncate tracking-tight max-w-[280px] flex items-center">
+            <h4 className="text-[length:calc(var(--text-scale)*32px)] font-[560] text-white/60 truncate tracking-tight max-w-[280px] flex items-center">
               {isPlayingLikedSongs() ? (
                 <>
                   <div className="w-5 ml-0.5 mr-3 mb-2">
@@ -432,10 +432,10 @@ export default function Home({
                       <div className="w-full h-full rounded-[12px] bg-white/10"></div>
                     )}
                   </div>
-                  <h4 className="mt-2 text-[36px] font-[580] text-white truncate tracking-tight max-w-[280px]">
+                  <h4 className="mt-2 text-[length:calc(var(--text-scale)*36px)] font-[580] text-white truncate tracking-tight max-w-[280px]">
                     {playlist.name}
                   </h4>
-                  <h4 className="text-[32px] font-[560] text-white/60 truncate tracking-tight max-w-[280px] flex items-center">
+                  <h4 className="text-[length:calc(var(--text-scale)*32px)] font-[560] text-white/60 truncate tracking-tight max-w-[280px] flex items-center">
                     {isPlayingFromPlaylist(playlist.id) ? (
                       <>
                         <div className="w-5 ml-0.5 mr-3 mb-2">
@@ -527,12 +527,12 @@ export default function Home({
                   )}
                 </div>
                 <h4
-                  className="mt-2 text-[36px] font-[580] text-white truncate tracking-tight max-w-[280px]"
+                  className="mt-2 text-[length:calc(var(--text-scale)*36px)] font-[580] text-white truncate tracking-tight max-w-[280px]"
                   onClick={() => onOpenContent(artist.id, "artist")}
                 >
                   {artist.name}
                 </h4>
-                <h4 className="text-[32px] font-[560] text-white/60 truncate tracking-tight max-w-[280px] flex items-center">
+                <h4 className="text-[length:calc(var(--text-scale)*32px)] font-[560] text-white/60 truncate tracking-tight max-w-[280px] flex items-center">
                   {isFromCurrentlyPlayingArtist(artist.id) ? (
                     <>
                       <div className="w-5 ml-0.5 mr-3 mb-2">
@@ -599,10 +599,10 @@ export default function Home({
                 className="w-full h-full object-cover rounded-[12px]"
               />
             </div>
-            <h4 className="mt-2 text-[36px] font-[580] text-white truncate tracking-tight max-w-[280px]">
+            <h4 className="mt-2 text-[length:calc(var(--text-scale)*36px)] font-[580] text-white truncate tracking-tight max-w-[280px]">
               DJ
             </h4>
-            <h4 className="text-[32px] font-[560] text-white/60 truncate tracking-tight max-w-[280px] flex items-center">
+            <h4 className="text-[length:calc(var(--text-scale)*32px)] font-[560] text-white/60 truncate tracking-tight max-w-[280px] flex items-center">
               {isPlayingDJ() ? (
                 <>
                   <div className="w-5 ml-0.5 mr-3 mb-2">
@@ -660,12 +660,12 @@ export default function Home({
                   )}
                 </div>
                 <h4
-                  className="mt-2 text-[36px] font-[580] text-white truncate tracking-tight max-w-[280px]"
+                  className="mt-2 text-[length:calc(var(--text-scale)*36px)] font-[580] text-white truncate tracking-tight max-w-[280px]"
                   onClick={() => onOpenContent(mix.id, "mix")}
                 >
                   {mix.name}
                 </h4>
-                <h4 className="text-[32px] font-[560] text-white/60 truncate tracking-tight max-w-[280px] flex items-center">
+                <h4 className="text-[length:calc(var(--text-scale)*32px)] font-[560] text-white/60 truncate tracking-tight max-w-[280px] flex items-center">
                   {isPlayingFromMix(mix.id) ? (
                     <>
                       <div className="w-5 ml-0.5 mr-3 mb-2">
@@ -749,12 +749,12 @@ export default function Home({
                     )}
                   </div>
                   <h4
-                    className="mt-2 text-[36px] font-[580] text-white truncate tracking-tight max-w-[280px]"
+                    className="mt-2 text-[length:calc(var(--text-scale)*36px)] font-[580] text-white truncate tracking-tight max-w-[280px]"
                     onClick={() => onOpenContent(show.id, "show")}
                   >
                     {show.name}
                   </h4>
-                  <h4 className="text-[32px] font-[560] text-white/60 truncate tracking-tight max-w-[280px]">
+                  <h4 className="text-[length:calc(var(--text-scale)*32px)] font-[560] text-white/60 truncate tracking-tight max-w-[280px]">
                     {show.publisher}
                   </h4>
                 </div>
@@ -802,7 +802,7 @@ export default function Home({
 
   return (
     <div className="relative min-h-screen">
-      <div className="relative z-10 grid grid-cols-[2.2fr_3fr] fadeIn-animation">
+      <div className="relative z-10 grid grid-cols-[1.5fr_3fr] fadeIn-animation">
         <div
           className="h-screen overflow-y-auto pb-12 pl-8 relative scroll-container scroll-smooth"
           style={{ willChange: "transform" }}
@@ -813,7 +813,7 @@ export default function Home({
           />
         </div>
 
-        <div className="h-screen overflow-y-auto">{renderContent()}</div>
+        <div className="h-screen overflow-y-auto" style={{ paddingRight: '50px' }}>{renderContent()}</div>
       </div>
 
       {showDonationModal && (

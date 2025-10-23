@@ -80,6 +80,15 @@ const settingsStructure = {
         defaultValue: true,
       },
       {
+        id: "text-size",
+        title: "Text Size",
+        type: "textSize",
+        description:
+          "Set the size of text displayed on the screen.",
+        storageKey: "textSize",
+        defaultValue: "1",
+      },
+      {
         id: "factory-reset",
         title: "Factory Reset",
         type: "action",
@@ -720,8 +729,27 @@ export default function Settings({
     }
   };
 
+  const setTextSize = (size) => {
+    try {
+      document.documentElement.style.setProperty("--text-scale", size);
+      updateSetting("textSize", size);
+    } catch (error) {
+      console.error("Error setting text size:", error);
+      updateSetting("textSize", "1");
+    }
+  }
+
   const handleAction = (action) => {
     switch (action) {
+      case "textSmall":
+        setTextSize("0.75");
+        break;
+      case "textMedium":
+        setTextSize("1");
+        break;
+      case "textLarge":
+        setTextSize("1.25");
+        break;
       case "factoryReset":
         setShowFactoryResetDialog(true);
         break;
@@ -835,28 +863,28 @@ export default function Settings({
                 onChange={() => handleToggle(item.storageKey)}
                 className={`relative inline-flex h-11 w-20 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   settings[item.storageKey] ? "bg-white/40" : "bg-white/10"
-                }`}
+                  }`}
               >
                 <span
                   className={`pointer-events-none inline-block h-10 w-10 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
                     settings[item.storageKey]
-                      ? "translate-x-9"
-                      : "translate-x-0"
-                  }`}
+                    ? "translate-x-9"
+                    : "translate-x-0"
+                    }`}
                 />
               </Switch>
-              <span className="ml-3 text-[32px] font-[580] text-white tracking-tight">
+              <span className="ml-3 text-[length:calc(var(--text-scale)*32px)] font-[580] text-white tracking-tight">
                 {item.title}
               </span>
             </div>
-            <p className="pt-4 text-[28px] font-[560] text-white/60 max-w-[380px] tracking-tight">
+            <p className="pt-4 text-[length:calc(var(--text-scale)*28px)] font-[560] text-white/60 max-w-[380px] tracking-tight">
               {item.description}
             </p>
             {item.storageKey === "autoTimezoneEnabled" &&
               !settings.autoTimezoneEnabled && (
                 <div className="mt-6 space-y-4">
                   <div>
-                    <label className="block text-[24px] font-[560] text-white/80 mb-2">
+                    <label className="block text-[length:calc(var(--text-scale)*24px)] font-[560] text-white/80 mb-2">
                       Continent
                     </label>
                     <Listbox
@@ -869,7 +897,7 @@ export default function Settings({
                       }}
                     >
                       <div className="relative w-96">
-                        <ListboxButton className="w-full bg-white/10 border border-white/10 rounded-[14px] px-5 py-4 text-white text-[24px] text-left hover:bg-white/15 focus:outline-none">
+                        <ListboxButton className="w-full bg-white/10 border border-white/10 rounded-[14px] px-5 py-4 text-white text-[length:calc(var(--text-scale)*24px)] text-left hover:bg-white/15 focus:outline-none">
                           {manualTzContinent || "Select continent"}
                         </ListboxButton>
                         <ListboxOptions className="absolute z-10 mt-2 max-h-72 w-full overflow-auto rounded-[14px] bg-[#1c1c1c] border border-white/10 shadow-lg focus:outline-none custom-scrollbar-hide">
@@ -877,7 +905,7 @@ export default function Settings({
                             <ListboxOption
                               key={c}
                               value={c}
-                              className="cursor-pointer select-none px-5 py-3 text-[22px] text-white/90 data-[focus]:bg-white/10 data-[focus]:text-white"
+                              className="cursor-pointer select-none px-5 py-3 text-[length:calc(var(--text-scale)*22px)] text-white/90 data-[focus]:bg-white/10 data-[focus]:text-white"
                             >
                               {c}
                             </ListboxOption>
@@ -887,7 +915,7 @@ export default function Settings({
                     </Listbox>
                   </div>
                   <div>
-                    <label className="block text-[24px] font-[560] text-white/80 mb-2">
+                    <label className="block text-[length:calc(var(--text-scale)*24px)] font-[560] text-white/80 mb-2">
                       Timezone
                     </label>
                     <Listbox
@@ -901,11 +929,11 @@ export default function Settings({
                     >
                       <div className="relative w-96">
                         <ListboxButton
-                          className={`w-full border rounded-[14px] px-5 py-4 text-[24px] text-left focus:outline-none ${
+                          className={`w-full border rounded-[14px] px-5 py-4 text-[length:calc(var(--text-scale)*24px)] text-left focus:outline-none ${
                             manualTzContinent
-                              ? "bg-white/10 border-white/10 text-white hover:bg-white/15"
-                              : "bg-white/5 border-white/10 text-white/40 cursor-not-allowed"
-                          }`}
+                            ? "bg-white/10 border-white/10 text-white hover:bg-white/15"
+                            : "bg-white/5 border-white/10 text-white/40 cursor-not-allowed"
+                            }`}
                         >
                           {manualTzContinent
                             ? manualTimezone
@@ -919,7 +947,7 @@ export default function Settings({
                               <ListboxOption
                                 key={tz}
                                 value={tz}
-                                className="cursor-pointer select-none px-5 py-3 text-[22px] text-white/90 data-[focus]:bg-white/10 data-[focus]:text-white"
+                                className="cursor-pointer select-none px-5 py-3 text-[length:calc(var(--text-scale)*22px)] text-white/90 data-[focus]:bg-white/10 data-[focus]:text-white"
                               >
                                 {tz.replace(/_/g, " ")}
                               </ListboxOption>
@@ -940,11 +968,51 @@ export default function Settings({
               onClick={() => handleAction(item.action)}
               className="bg-white/10 hover:bg-white/20 w-80 transition-colors duration-200 rounded-[12px] px-6 py-3 border border-white/10 focus:outline-none"
             >
-              <span className="text-[32px] font-[580] text-white tracking-tight">
+              <span className="text-[length:calc(var(--text-scale)*32px)] font-[580] text-white tracking-tight">
                 {item.title}
               </span>
             </button>
-            <p className="pt-4 text-[28px] font-[560] text-white/60 max-w-[380px] tracking-tight">
+            <p className="pt-4 text-[length:calc(var(--text-scale)*28px)] font-[560] text-white/60 max-w-[380px] tracking-tight">
+              {item.description}
+            </p>
+          </div>
+        );
+      case "textSize":
+        return (
+          <div key={item.id} className="mb-8">
+            <span className="text-[length:calc(var(--text-scale)*32px)] font-[580] text-white tracking-tight">
+              {item.title}
+            </span>
+            <div class="flex flex-col mt-4">
+              <button
+                onClick={() => handleAction("textSmall")}
+                className="bg-white/10 hover:bg-white/20 w-80 transition-colors duration-200 rounded-[12px] px-6 py-3 border border-white/10 focus:outline-none"
+                style={{ backgroundColor: settings[item.storageKey] === "0.75" ? "rgb(255 255 255 / 0.4)" : "" }}
+              >
+                <span className="text-[length:calc(var(--text-scale)*26px)] font-[580] text-white tracking-tight">
+                  Small
+                </span>
+              </button>
+              <button
+                onClick={() => handleAction("textMedium")}
+                className="bg-white/10 hover:bg-white/20 w-80 mt-4 transition-colors duration-200 rounded-[12px] px-6 py-3 border border-white/10 focus:outline-none"
+                style={{ backgroundColor: settings[item.storageKey] === "1" ? "rgb(255 255 255 / 0.4)" : "" }}
+              >
+                <span className="text-[length:calc(var(--text-scale)*32px)] font-[580] text-white tracking-tight">
+                  Medium
+                </span>
+              </button>
+              <button
+                onClick={() => handleAction("textLarge")}
+                className="bg-white/10 hover:bg-white/20 w-80 mt-4 transition-colors duration-200 rounded-[12px] px-6 py-3 border border-white/10 focus:outline-none"
+                style={{ backgroundColor: settings[item.storageKey] === "1.25" ? "rgb(255 255 255 / 0.4)" : "" }}
+              >
+                <span className="text-[length:calc(var(--text-scale)*40px)] font-[580] text-white tracking-tight">
+                  Large
+                </span>
+              </button>
+            </div>
+            <p className="pt-4 text-[length:calc(var(--text-scale)*28px)] font-[560] text-white/60 max-w-[380px] tracking-tight">
               {item.description}
             </p>
           </div>
@@ -952,14 +1020,14 @@ export default function Settings({
       case "sponsors":
         return (
           <div key={item.id} className="mb-8">
-            <h3 className="text-[32px] font-[580] text-white tracking-tight mb-4">
+            <h3 className="text-[length:calc(var(--text-scale)*32px)] font-[580] text-white tracking-tight mb-4">
               {item.title}
             </h3>
             <div className="space-y-2">
               {item.names.map((name, index) => (
                 <p
                   key={`${item.id}-${index}`}
-                  className="text-[28px] font-[560] text-white/60 tracking-tight"
+                  className="text-[length:calc(var(--text-scale)*28px)] font-[560] text-white/60 tracking-tight"
                 >
                   {name}
                 </p>
@@ -970,7 +1038,7 @@ export default function Settings({
       case "info":
         return (
           <div key={item.id} className="mb-8">
-            <p className="text-[20px] font-[560] text-white/60 max-w-[380px] tracking-tight whitespace-pre-line">
+            <p className="text-[length:calc(var(--text-scale)*20px)] font-[560] text-white/60 max-w-[380px] tracking-tight whitespace-pre-line">
               {item.id === "nocturne-version" ? versionInfo : item.description}
             </p>
           </div>
@@ -1048,7 +1116,7 @@ export default function Settings({
                 overflowX: "hidden",
               }}
             >
-              <h2 className="text-[46px] font-[580] text-white tracking-tight mb-6">
+              <h2 className="text-[length:calc(var(--text-scale)*46px)] font-[580] text-white tracking-tight mb-6">
                 Settings
               </h2>
               <div className="space-y-4 mb-12">
@@ -1069,7 +1137,7 @@ export default function Settings({
                       <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center">
                         <section.icon className="w-7 h-7 text-white" />
                       </div>
-                      <span className="text-[32px] ml-4 font-[580] text-white tracking-tight">
+                      <span className="text-[length:calc(var(--text-scale)*32px)] ml-4 font-[580] text-white tracking-tight">
                         {section.title}
                       </span>
                     </div>
@@ -1098,13 +1166,13 @@ export default function Settings({
                 >
                   <ChevronLeftIcon className="w-8 h-8 text-white" />
                 </button>
-                <h2 className="text-[46px] font-[580] text-white tracking-tight">
+                <h2 className="text-[length:calc(var(--text-scale)*46px)] font-[580] text-white tracking-tight">
                   {activeParent && settingsStructure[activeParent].title}
                 </h2>
               </div>
               <div className="space-y-6 mb-12">
                 {activeParent &&
-                settingsStructure[activeParent].type === "parent" ? (
+                  settingsStructure[activeParent].type === "parent" ? (
                   <div className="space-y-4">
                     {settingsStructure[activeParent].items?.map((subItem) => (
                       <button
@@ -1117,7 +1185,7 @@ export default function Settings({
                           <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center">
                             <subItem.icon className="w-7 h-7 text-white" />
                           </div>
-                          <span className="text-[32px] ml-4 font-[580] text-white tracking-tight">
+                          <span className="text-[length:calc(var(--text-scale)*32px)] ml-4 font-[580] text-white tracking-tight">
                             {subItem.title}
                           </span>
                         </div>
@@ -1151,7 +1219,7 @@ export default function Settings({
                 >
                   <ChevronLeftIcon className="w-8 h-8 text-white" />
                 </button>
-                <h2 className="text-[46px] font-[580] text-white tracking-tight">
+                <h2 className="text-[length:calc(var(--text-scale)*46px)] font-[580] text-white tracking-tight">
                   {activeSubItem?.title}
                 </h2>
               </div>
@@ -1186,12 +1254,12 @@ export default function Settings({
                 <div className="text-center">
                   <DialogTitle
                     as="h3"
-                    className="text-[36px] font-[560] tracking-tight text-white"
+                    className="text-[length:calc(var(--text-scale)*36px)] font-[560] tracking-tight text-white"
                   >
                     Factory Reset?
                   </DialogTitle>
                   <div className="mt-2">
-                    <p className="text-[28px] font-[560] tracking-tight text-white/60">
+                    <p className="text-[length:calc(var(--text-scale)*28px)] font-[560] tracking-tight text-white/60">
                       This will erase all stored settings and paired Bluetooth
                       devices. This cannot be undone.
                     </p>
@@ -1202,14 +1270,14 @@ export default function Settings({
                 <button
                   type="button"
                   onClick={() => setShowFactoryResetDialog(false)}
-                  className="inline-flex w-full justify-center px-3 py-3 text-[28px] font-[560] tracking-tight text-[#6c8bd5] shadow-sm sm:col-start-1 border-r border-slate-100/25 bg-transparent hover:bg-white/5 focus:outline-none"
+                  className="inline-flex w-full justify-center px-3 py-3 text-[length:calc(var(--text-scale)*28px)] font-[560] tracking-tight text-[#6c8bd5] shadow-sm sm:col-start-1 border-r border-slate-100/25 bg-transparent hover:bg-white/5 focus:outline-none"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleFactoryReset}
-                  className="mt-3 inline-flex w-full justify-center px-3 py-3 text-[28px] font-[560] tracking-tight text-[#fe3b30] shadow-sm sm:col-start-2 sm:mt-0 bg-transparent hover:bg-white/5 focus:outline-none"
+                  className="mt-3 inline-flex w-full justify-center px-3 py-3 text-[length:calc(var(--text-scale)*28px)] font-[560] tracking-tight text-[#fe3b30] shadow-sm sm:col-start-2 sm:mt-0 bg-transparent hover:bg-white/5 focus:outline-none"
                 >
                   Reset
                 </button>

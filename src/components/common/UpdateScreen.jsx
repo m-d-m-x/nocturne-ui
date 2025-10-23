@@ -165,7 +165,7 @@ const UpdateScreen = () => {
             <h2 className="text-5xl text-white tracking-tight font-[600] whitespace-nowrap max-w-full">
               {title}
             </h2>
-            <p className="text-[30px] text-white/70 font-[560] tracking-tight w-[24rem]">
+            <p className="text-[length:calc(var(--text-scale)*30px)] text-white/70 font-[560] tracking-tight w-[24rem]">
               {description}
             </p>
           </div>
@@ -180,7 +180,7 @@ const UpdateScreen = () => {
               }}
             />
           </div>
-          <div className="relative mt-2 text-white/60 text-[20px] tracking-tight w-full">
+          <div className="relative mt-2 text-white/60 text-[length:calc(var(--text-scale)*20px)] tracking-tight w-full">
             {!isStageComplete && (
               <span className="absolute left-0">{displayPercent}%</span>
             )}

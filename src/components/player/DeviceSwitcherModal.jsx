@@ -177,7 +177,7 @@ const DeviceSwitcherModal = ({
                     as="h3"
                     className="text-4xl font-medium text-white"
                     style={{
-                      fontSize: "36px",
+                      fontSize: `calc(var(--text-scale)*36px)`,
                       fontWeight: 560,
                       letterSpacing: "-0.025em",
                     }}
@@ -190,7 +190,7 @@ const DeviceSwitcherModal = ({
                     <p
                       className="text-white opacity-60"
                       style={{
-                        fontSize: "28px",
+                        fontSize: `calc(var(--text-scale)*28px)`,
                         fontWeight: 560,
                         letterSpacing: "-0.025em",
                       }}
@@ -203,7 +203,7 @@ const DeviceSwitcherModal = ({
                     <p
                       className="text-white opacity-60"
                       style={{
-                        fontSize: "28px",
+                        fontSize: `calc(var(--text-scale)*28px)`,
                         fontWeight: 560,
                         letterSpacing: "-0.025em",
                       }}
@@ -232,7 +232,7 @@ const DeviceSwitcherModal = ({
                             <p
                               className="text-white"
                               style={{
-                                fontSize: "28px",
+                                fontSize: `calc(var(--text-scale)*28px)`,
                                 fontWeight: 560,
                                 letterSpacing: "-0.025em",
                               }}
@@ -257,7 +257,7 @@ const DeviceSwitcherModal = ({
                 disabled={isLoading}
                 className="flex-1 flex justify-center items-center px-3 py-3 hover:bg-white hover:bg-opacity-5 transition-colors disabled:opacity-50 border-r border-slate-100 border-opacity-25"
                 style={{
-                  fontSize: "28px",
+                  fontSize: `calc(var(--text-scale)*28px)`,
                   fontWeight: 560,
                   letterSpacing: "-0.025em",
                   color: "#6c8bd5",
@@ -271,7 +271,7 @@ const DeviceSwitcherModal = ({
                 onClick={() => onClose(null)}
                 className="flex-1 flex justify-center items-center px-3 py-3 hover:bg-white hover:bg-opacity-5 transition-colors focus:outline-none outline-none focus:ring-0 appearance-none"
                 style={{
-                  fontSize: "28px",
+                  fontSize: `calc(var(--text-scale)*28px)`,
                   fontWeight: 560,
                   letterSpacing: "-0.025em",
                   color: "#6c8bd5",

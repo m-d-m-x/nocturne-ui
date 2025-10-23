@@ -320,7 +320,7 @@ const Tutorial = ({ onComplete, onStepChange }) => {
               }`}
             >
               <p
-                className={`text-[28px] mt-3 text-white/60 tracking-tight ${
+                className={`text-[length:calc(var(--text-scale)*28px)] mt-3 text-white/60 tracking-tight ${
                   currentScreen === 0 || currentScreen === screens.length - 1
                     ? "w-[30rem]"
                     : "w-[20.68rem]"
@@ -333,7 +333,7 @@ const Tutorial = ({ onComplete, onStepChange }) => {
                   onClick={handleContinue}
                   className="mt-4 bg-white/10 hover:bg-white/20 focus:outline-none transition-colors duration-200 rounded-xl px-6 py-3"
                 >
-                  <span className="text-[28px] font-[560] text-white tracking-tight">
+                  <span className="text-[length:calc(var(--text-scale)*28px)] font-[560] text-white tracking-tight">
                     {currentScreen === screens.length - 1
                       ? "Get Started"
                       : "Continue"}

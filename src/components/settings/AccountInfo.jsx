@@ -14,10 +14,10 @@ export default function AccountInfo({ userProfile }) {
           />
         )}
         <div>
-          <h3 className="text-[32px] font-[580] text-white tracking-tight">
+          <h3 className="text-[length:calc(var(--text-scale)*32px)] font-[580] text-white tracking-tight">
             {userProfile.display_name}
           </h3>
-          <p className="text-[24px] font-[560] text-white/60 tracking-tight">
+          <p className="text-[length:calc(var(--text-scale)*24px)] font-[560] text-white/60 tracking-tight">
             {userProfile.email}
           </p>
         </div>

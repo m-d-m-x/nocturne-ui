@@ -164,12 +164,12 @@ const SoftwareUpdate = () => {
                   <div className="flex justify-center">
                     <CheckCircleIcon className="w-16 h-16 text-green-400" />
                   </div>
-                  <div className="text-[28px] font-[580] text-white tracking-tight">
+                  <div className="text-[length:calc(var(--text-scale)*28px)] font-[580] text-white tracking-tight">
                     {sessionCompleted
                       ? "Update Complete"
                       : `${name} is up to date`}
                   </div>
-                  <div className="text-[24px] font-[560] text-white/80 tracking-tight">
+                  <div className="text-[length:calc(var(--text-scale)*24px)] font-[560] text-white/80 tracking-tight">
                     {sessionCompleted
                       ? "Reboot to apply changes"
                       : `Version ${currentVersion}`}
@@ -183,7 +183,7 @@ const SoftwareUpdate = () => {
                 onClick={onReboot}
                 className="w-full p-4 rounded-xl border bg-white/10 hover:bg-white/20 border-white/10 text-white"
               >
-                <span className="text-[28px] font-[580] text-white tracking-tight">
+                <span className="text-[length:calc(var(--text-scale)*28px)] font-[580] text-white tracking-tight">
                   Reboot Now
                 </span>
               </button>
@@ -200,7 +200,7 @@ const SoftwareUpdate = () => {
                 <RefreshIcon
                   className={`w-7 h-7 mr-2 ${isChecking ? "animate-spin" : ""}`}
                 />
-                <span className="text-[28px] font-[580] text-white tracking-tight">
+                <span className="text-[length:calc(var(--text-scale)*28px)] font-[580] text-white tracking-tight">
                   {isChecking ? "Checking for updates..." : "Check for Updates"}
                 </span>
               </button>
@@ -223,10 +223,10 @@ const SoftwareUpdate = () => {
                   />
                 )}
                 <div className="ml-4">
-                  <div className="text-[28px] font-[580] text-white tracking-tight">
+                  <div className="text-[length:calc(var(--text-scale)*28px)] font-[580] text-white tracking-tight">
                     {name} {latestVersion}
                   </div>
-                  <div className="text-[20px] font-[560] text-white/80 tracking-tight">
+                  <div className="text-[length:calc(var(--text-scale)*20px)] font-[560] text-white/80 tracking-tight">
                     {formatBytes(updateInfo?.releaseSize || 0)} •{" "}
                     {updateInfo?.releaseDate.split("T")[0]}
                   </div>
@@ -235,17 +235,17 @@ const SoftwareUpdate = () => {
 
               {isMultiStepUpdate && (
                 <div className="mb-4 px-4 py-3 bg-blue-600/20 border border-blue-400/30 rounded-lg">
-                  <div className="text-[20px] font-[580] text-blue-300">
+                  <div className="text-[length:calc(var(--text-scale)*20px)] font-[580] text-blue-300">
                     Multiple Updates Required
                   </div>
-                  <div className="text-[18px] text-blue-200/80">
+                  <div className="text-[length:calc(var(--text-scale)*18px)] text-blue-200/80">
                     Your system needs {totalUpdates} updates to reach version{" "}
                     {finalVersion}.
                   </div>
                 </div>
               )}
 
-              <div className="space-y-3 text-[24px] font-[560] text-white/80 tracking-tight">
+              <div className="space-y-3 text-[length:calc(var(--text-scale)*24px)] font-[560] text-white/80 tracking-tight">
                 <div className="space-y-2">
                   {formatDescription(
                     showFullDescription
@@ -260,7 +260,7 @@ const SoftwareUpdate = () => {
                       onClick={() =>
                         setShowFullDescription(!showFullDescription)
                       }
-                      className="text-blue-400 hover:text-blue-300 transition-colors text-[20px] font-[560]"
+                      className="text-blue-400 hover:text-blue-300 transition-colors text-[length:calc(var(--text-scale)*20px)] font-[560]"
                       style={{ background: "none" }}
                     >
                       {showFullDescription ? "Show less" : "Read more"}
@@ -270,10 +270,10 @@ const SoftwareUpdate = () => {
 
               {noCompatiblePath && (
                 <div className="mt-4 p-3 bg-amber-600/20 border border-amber-400/30 rounded-lg">
-                  <div className="text-[20px] font-[580] text-amber-400">
+                  <div className="text-[length:calc(var(--text-scale)*20px)] font-[580] text-amber-400">
                     No Compatible Update Path
                   </div>
-                  <div className="text-[18px] text-amber-300/80">
+                  <div className="text-[length:calc(var(--text-scale)*18px)] text-amber-300/80">
                     There's no direct update path from your current version.
                     Please manually update to the latest version using a
                     computer.
@@ -283,10 +283,10 @@ const SoftwareUpdate = () => {
 
               {!canUpdate && !noCompatiblePath && (
                 <div className="mt-4 p-3 bg-amber-600/20 border border-amber-400/30 rounded-lg">
-                  <div className="text-[20px] font-[580] text-amber-400">
+                  <div className="text-[length:calc(var(--text-scale)*20px)] font-[580] text-amber-400">
                     Your current version is too old for this update.
                   </div>
-                  <div className="text-[18px] text-amber-300/80">
+                  <div className="text-[length:calc(var(--text-scale)*18px)] text-amber-300/80">
                     Please update to at least version{" "}
                     {updateInfo?.minimumVersion} first.
                   </div>
@@ -306,7 +306,7 @@ const SoftwareUpdate = () => {
                 onClick={canUpdate ? onUpdate : undefined}
                 disabled={!canUpdate}
               >
-                <span className="text-[28px] font-[580] tracking-tight">
+                <span className="text-[length:calc(var(--text-scale)*28px)] font-[580] tracking-tight">
                   Download and Install
                 </span>
               </button>
@@ -334,7 +334,7 @@ const SoftwareUpdate = () => {
       <div className="space-y-6">
         <div className="p-4 bg-white/10 rounded-xl border border-white/10">
           <div className="flex items-center justify-center py-8">
-            <div className="text-[24px] font-[560] text-white/80 tracking-tight">
+            <div className="text-[length:calc(var(--text-scale)*24px)] font-[560] text-white/80 tracking-tight">
               No update information available
             </div>
           </div>
