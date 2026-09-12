@@ -263,21 +263,19 @@ function useGlobalButtonMapping({
 
     if (isDisabled) return;
 
-    // refs to track enter long-press state
+    // In dev, use V so Enter works normally in the browser during testing.
+    // In production (on-device) Enter = dial press.
+    const VOICE_KEY = import.meta.env.DEV ? "v" : "Enter";
+
     const extraLongPressTimerRef = { current: null };
     const extraLongPressFiredRef = { current: false };
 
     const handleKeyDown = (e) => {
-      // Handle Enter long-press (capture-phase; suppress other handlers while deciding)
-      if (e.key === "v") {
-        // ignore synthetic re-dispatched events
+      if (e.key === VOICE_KEY) {
         if (e.__nocturneSynthetic) return;
-
         if (e.repeat) return;
 
-        // start timer only if not pending
         if (!extraLongPressTimerRef.current) {
-          // prevent other handlers from acting on this physical keydown
           e.stopImmediatePropagation();
           e.preventDefault();
 
@@ -285,16 +283,12 @@ function useGlobalButtonMapping({
           extraLongPressTimerRef.current = setTimeout(() => {
             extraLongPressFiredRef.current = true;
             extraLongPressTimerRef.current = null;
-            // long-press behavior
             setListeningOverlayVisible(true);
-            // if you need to ignore the corresponding keyup elsewhere:
-            // setIgnoreNextRelease?.();
           }, 675);
         }
         return;
       }
 
-      // buttons 1-4: keep existing behavior (suppress default/react handlers)
       if (!["1", "2", "3", "4"].includes(e.key)) return;
 
       e.stopImmediatePropagation();
@@ -302,43 +296,34 @@ function useGlobalButtonMapping({
     };
 
     const handleKeyUp = (e) => {
-      // Enter short/long-press resolution
-      if (e.key === "v") {
-        // ignore synthetic re-dispatched events
+      if (e.key === VOICE_KEY) {
         if (e.__nocturneSynthetic) return;
 
-        // if timer pending => short press: cancel and re-dispatch synthetic events
         if (extraLongPressTimerRef.current) {
           clearTimeout(extraLongPressTimerRef.current);
           extraLongPressTimerRef.current = null;
 
-          // Re-dispatch synthetic keydown + keyup so normal UI handlers run for a short press.
-          // Mark them so our capture listener ignores them.
           const kd = new KeyboardEvent("keydown", {
-            key: "v",
+            key: VOICE_KEY,
             bubbles: true,
             cancelable: true,
           });
           Object.defineProperty(kd, "__nocturneSynthetic", { value: true });
 
           const ku = new KeyboardEvent("keyup", {
-            key: "v",
+            key: VOICE_KEY,
             bubbles: true,
             cancelable: true,
           });
           Object.defineProperty(ku, "__nocturneSynthetic", { value: true });
 
-          // Important: dispatch on document so React + other listeners receive them.
           document.dispatchEvent(kd);
           document.dispatchEvent(ku);
         } else if (extraLongPressFiredRef.current) {
-          // long press already fired; releasing V ends the dictation (push-to-talk)
           extraLongPressFiredRef.current = false;
           setListeningOverlayVisible(false);
         }
 
-        // Always stop propagation of the original physical keyup (we either re-dispatched synthetic ones,
-        // or have already handled the long-press)
         e.stopImmediatePropagation();
         e.preventDefault();
         return;
