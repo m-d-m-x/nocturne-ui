@@ -3,6 +3,17 @@ import { useNocturned } from "../../../hooks/useNocturned";
 import { useSettings } from "../../../contexts/SettingsContext";
 import { classifyIntent, intentLabel } from "../../../utils/voiceIntent";
 
+function friendlyError(raw) {
+  const s = (raw || "").toLowerCase();
+  if (s.includes("429") || s.includes("rate_limit") || s.includes("rate limit"))
+    return "Rate limit — try again";
+  if (s.includes("401") || s.includes("invalid_api_key") || s.includes("authentication"))
+    return "Invalid API key";
+  if (s.includes("empty transcription") || s.includes("no audio"))
+    return "No speech detected";
+  return "Voice command failed";
+}
+
 const PHASE_IDLE = "idle";
 const PHASE_LISTENING = "listening";
 const PHASE_PROCESSING = "processing";
@@ -35,7 +46,7 @@ function ListeningOverlay({ show, onClose, onCommand }) {
     if (show) {
       setMounted(true);
       document.body.classList.add("stop-scrolling");
-    } else if (mounted && (phase === PHASE_IDLE || phase === PHASE_LISTENING)) {
+    } else if (mounted && (phase === PHASE_IDLE || phase === PHASE_LISTENING || phase === PHASE_ERROR)) {
       unmountTimer = setTimeout(() => setMounted(false), 300);
       setTimeout(() => document.body.classList.remove("stop-scrolling"), 300);
     }
@@ -106,10 +117,16 @@ function ListeningOverlay({ show, onClose, onCommand }) {
 
       if (error) {
         if (!mountedRef.current) return;
-        setErrMsg(error);
+        setErrMsg(friendlyError(error));
         setPhase(PHASE_ERROR);
         setTimeout(() => {
-          if (mountedRef.current) onClose?.();
+          if (mountedRef.current) {
+            document.body.classList.remove("stop-scrolling");
+            document.body.style.overflow = "";
+            document.body.style.touchAction = "";
+            setMounted(false);
+            onClose?.();
+          }
         }, 3000);
         return;
       }
@@ -139,12 +156,15 @@ function ListeningOverlay({ show, onClose, onCommand }) {
               }
             }, delay);
           })
-          .catch(() => {
+          .catch((err) => {
             if (!mountedRef.current) return;
-            const fallback = { type: "search", args: { query: text } };
-            setConfirmedLabel(intentLabel(fallback));
-            setPhase(PHASE_CONFIRMED);
-            onCommand?.(fallback);
+            const msg =
+              err?.message?.includes("429") ||
+              err?.message?.includes("rate_limit")
+                ? "Rate limit — try again"
+                : "Couldn't understand — try again";
+            setErrMsg(msg);
+            setPhase(PHASE_ERROR);
             setTimeout(() => {
               if (mountedRef.current) {
                 document.body.classList.remove("stop-scrolling");
@@ -153,7 +173,7 @@ function ListeningOverlay({ show, onClose, onCommand }) {
                 setMounted(false);
                 onClose?.();
               }
-            }, 600);
+            }, 2500);
           });
       } else {
         if (!mountedRef.current) return;

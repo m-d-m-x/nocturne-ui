@@ -48,6 +48,27 @@ export function SettingsProvider({ children }) {
     });
   }, []);
 
+  useEffect(() => {
+    fetch("http://localhost:5000/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((config) => {
+        if (!config) return;
+        setSettings((prev) => ({
+          ...prev,
+          ...(config.voiceSttProvider != null && {
+            voiceSttProvider: config.voiceSttProvider,
+          }),
+          ...(config.voiceSttApiKey != null && {
+            voiceSttApiKey: config.voiceSttApiKey,
+          }),
+          ...(config.voiceSearchEnabled != null && {
+            voiceSearchEnabled: config.voiceSearchEnabled,
+          }),
+        }));
+      });
+  }, []);
+
   const updateSetting = (key, value) => {
     const newSettings = { ...settings };
 

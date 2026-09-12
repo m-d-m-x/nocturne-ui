@@ -17,7 +17,7 @@ Return exactly: {"type":"<intent>","args":{}}`;
 
 export async function classifyIntent(transcript, provider, apiKey) {
   const url = provider === "openai" ? OPENAI_CHAT_URL : GROQ_CHAT_URL;
-  const model = provider === "openai" ? "gpt-4o-mini" : "llama-3.1-8b-instant";
+  const model = provider === "openai" ? "gpt-4o-mini" : "llama-3.3-70b-versatile";
 
   const res = await fetch(url, {
     method: "POST",
