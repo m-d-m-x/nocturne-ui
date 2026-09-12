@@ -33,7 +33,84 @@ body {
 
 * {
   user-select: none;
-  cursor: none !important;
+  /* cursor: none !important; */
+}
+
+.loader {
+  width: 48px;
+  height: 48px;
+  display: inline-block;
+  position: relative;
+}
+
+.loader::after,
+.loader::before {
+  content: '';
+  box-sizing: border-box;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 2px solid #FFF;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: scale(0);
+  opacity: 0;
+  transform-origin: center;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+
+  animation: animloader 2s linear infinite;
+  animation-fill-mode: both;
+}
+
+.loader::after {
+  animation-delay: 1s;
+}
+
+@keyframes animloader {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes listeningFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes listeningFadeOut {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+.listening-fade-in {
+  animation: listeningFadeIn 300ms ease-out forwards;
+}
+
+.listening-fade-out {
+  animation: listeningFadeOut 300ms ease-out forwards;
+}
+
+.stop-scrolling {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -91,6 +168,7 @@ body {
 }
 
 @keyframes marquee {
+
   0%,
   2.5% {
     transform: translateX(0);
@@ -166,7 +244,7 @@ section {
   animation-delay: calc(var(--wave-offset) - 0.4s);
 }
 
-.text-[40px].font-[580].tracking-tight.transition-colors {
+.text-ease {
   transition: color 0.3s ease-in-out;
   will-change: color;
   transform: translateZ(0);

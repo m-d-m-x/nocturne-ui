@@ -24,6 +24,8 @@ import {
   useNocturneInfo,
 } from "./hooks/useNocturned";
 import { useSpotifyData } from "./hooks/useSpotifyData";
+import { useSpotifySearch } from "./hooks/useSpotifySearch";
+import SearchResultsView from "./components/content/SearchResultsView";
 import { usePlaybackProgress } from "./hooks/usePlaybackProgress";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { ConnectorProvider } from "./contexts/ConnectorContext";
@@ -37,6 +39,7 @@ import PairingScreen from "./components/auth/PairingScreen";
 import LockView from "./components/common/LockView";
 import LoadingScreen from "./components/common/LoadingScreen";
 import PowerMenuOverlay from "./components/common/overlays/PowerMenuOverlay";
+import ListeningOverlay from "./components/common/overlays/ListeningOverlay";
 import { CheckIcon } from "./components/common/icons";
 import { SettingsUpdateIcon } from "./components/common/icons";
 import UpdateCheckNotification from "./components/common/notifications/UpdateCheckNotification";
@@ -44,12 +47,12 @@ import UpdateScreen from "./components/common/UpdateScreen";
 
 export const NetworkContext = React.createContext({
   selectedNetwork: null,
-  setSelectedNetwork: () => {},
+  setSelectedNetwork: () => { },
 });
 
 export const ConnectorContext = React.createContext({
   showConnectorModal: false,
-  setShowConnectorModal: () => {},
+  setShowConnectorModal: () => { },
 });
 
 function useGlobalButtonMapping({
@@ -61,6 +64,7 @@ function useGlobalButtonMapping({
   setActiveSection,
   isTutorialActive,
   isDisabled = false,
+  setListeningOverlayVisible,
 }) {
   const [showMappingOverlay, setShowMappingOverlay] = useState(false);
   const [activeButton, setActiveButton] = useState(null);
@@ -259,15 +263,88 @@ function useGlobalButtonMapping({
 
     if (isDisabled) return;
 
-    const handleKeyDown = (e) => {
-      const validButtons = ["1", "2", "3", "4"];
-      const buttonNumber = e.key;
+    // refs to track enter long-press state
+    const extraLongPressTimerRef = { current: null };
+    const extraLongPressFiredRef = { current: false };
 
-      if (!validButtons.includes(buttonNumber)) return;
+    const handleKeyDown = (e) => {
+      // Handle Enter long-press (capture-phase; suppress other handlers while deciding)
+      if (e.key === "v") {
+        // ignore synthetic re-dispatched events
+        if (e.__nocturneSynthetic) return;
+
+        if (e.repeat) return;
+
+        // start timer only if not pending
+        if (!extraLongPressTimerRef.current) {
+          // prevent other handlers from acting on this physical keydown
+          e.stopImmediatePropagation();
+          e.preventDefault();
+
+          extraLongPressFiredRef.current = false;
+          extraLongPressTimerRef.current = setTimeout(() => {
+            extraLongPressFiredRef.current = true;
+            extraLongPressTimerRef.current = null;
+            // long-press behavior
+            setListeningOverlayVisible(true);
+            // if you need to ignore the corresponding keyup elsewhere:
+            // setIgnoreNextRelease?.();
+          }, 675);
+        }
+        return;
+      }
+
+      // buttons 1-4: keep existing behavior (suppress default/react handlers)
+      if (!["1", "2", "3", "4"].includes(e.key)) return;
+
+      e.stopImmediatePropagation();
       e.preventDefault();
     };
 
     const handleKeyUp = (e) => {
+      // Enter short/long-press resolution
+      if (e.key === "v") {
+        // ignore synthetic re-dispatched events
+        if (e.__nocturneSynthetic) return;
+
+        // if timer pending => short press: cancel and re-dispatch synthetic events
+        if (extraLongPressTimerRef.current) {
+          clearTimeout(extraLongPressTimerRef.current);
+          extraLongPressTimerRef.current = null;
+
+          // Re-dispatch synthetic keydown + keyup so normal UI handlers run for a short press.
+          // Mark them so our capture listener ignores them.
+          const kd = new KeyboardEvent("keydown", {
+            key: "v",
+            bubbles: true,
+            cancelable: true,
+          });
+          Object.defineProperty(kd, "__nocturneSynthetic", { value: true });
+
+          const ku = new KeyboardEvent("keyup", {
+            key: "v",
+            bubbles: true,
+            cancelable: true,
+          });
+          Object.defineProperty(ku, "__nocturneSynthetic", { value: true });
+
+          // Important: dispatch on document so React + other listeners receive them.
+          document.dispatchEvent(kd);
+          document.dispatchEvent(ku);
+        } else if (extraLongPressFiredRef.current) {
+          // long press already fired; releasing V ends the dictation (push-to-talk)
+          extraLongPressFiredRef.current = false;
+          setListeningOverlayVisible(false);
+        }
+
+        // Always stop propagation of the original physical keyup (we either re-dispatched synthetic ones,
+        // or have already handled the long-press)
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        return;
+      }
+
+      // 1-4 keyup: existing behavior
       const validButtons = ["1", "2", "3", "4"];
       const buttonNumber = e.key;
 
@@ -279,6 +356,7 @@ function useGlobalButtonMapping({
       }
 
       handleButtonPress(buttonNumber);
+      e.stopImmediatePropagation();
       e.preventDefault();
     };
 
@@ -288,6 +366,10 @@ function useGlobalButtonMapping({
     return () => {
       window.removeEventListener("keydown", handleKeyDown, { capture: true });
       window.removeEventListener("keyup", handleKeyUp, { capture: true });
+      if (extraLongPressTimerRef.current) {
+        clearTimeout(extraLongPressTimerRef.current);
+        extraLongPressTimerRef.current = null;
+      }
     };
   }, [isAuthenticated, handleButtonPress, isTutorialActive, isDisabled]);
 
@@ -422,6 +504,13 @@ function App() {
   const [showLoader, setShowLoader] = useState(true);
   const [initialTokenRefreshDone, setInitialTokenRefreshDone] = useState(false);
   const [powerMenuVisible, setPowerMenuVisible] = useState(false);
+  const [listeningOverlayVisible, setListeningOverlayVisible] = useState(false);
+  const {
+    results: searchResults,
+    loading: searchLoading,
+    error: searchError,
+    searchSpotify,
+  } = useSpotifySearch();
   const { tokenReady } = useAuth();
 
   useEffect(() => {
@@ -430,10 +519,15 @@ function App() {
     }
   }, [tokenReady, initialTokenRefreshDone]);
   const powerMenuVisibleRef = useRef(false);
+  const listeningOverlayVisibleRef = useRef(false);
 
   useEffect(() => {
     powerMenuVisibleRef.current = powerMenuVisible;
   }, [powerMenuVisible]);
+
+  useEffect(() => {
+    listeningOverlayVisibleRef.current = listeningOverlayVisible;
+  }, [listeningOverlayVisible]);
 
   const {
     isAuthenticated,
@@ -576,6 +670,7 @@ function App() {
     setActiveSection,
     isTutorialActive: showTutorial,
     isDisabled: powerMenuVisible || isUpdating,
+    setListeningOverlayVisible,
   });
 
   const handleOpenDeviceSwitcher = (
@@ -802,6 +897,7 @@ function App() {
       if (!holdTimerRef.current) {
         holdTimerRef.current = setTimeout(() => {
           longPressTriggeredRef.current = true;
+          setListeningOverlayVisible(false);
           setPowerMenuVisible(true);
           holdTimerRef.current = null;
         }, 600);
@@ -832,6 +928,7 @@ function App() {
         activeSectionRef.current = target;
       } else {
         previousSectionRef.current = activeSectionRef.current;
+        setListeningOverlayVisible(false);
         setActiveSection("lock");
         activeSectionRef.current = "lock";
       }
@@ -930,6 +1027,17 @@ function App() {
     setViewingContent(null);
     setActiveSection("nowPlaying");
   };
+
+  const handleVoiceTranscript = useCallback(
+    (text) => {
+      if (!text || !text.trim()) return;
+      setContentSourceSection(activeSection);
+      setViewingContent(null);
+      setActiveSection("search");
+      searchSpotify(text);
+    },
+    [activeSection, searchSpotify],
+  );
 
   const handleNavigateToArtist = (id, type) => {
     setViewingContent({ id, type });
@@ -1030,6 +1138,16 @@ function App() {
         onClose={() => setActiveSection("recents")}
       />
     );
+  } else if (activeSection === "search") {
+    content = (
+      <SearchResultsView
+        accessToken={accessToken}
+        results={searchResults}
+        loading={searchLoading}
+        error={searchError}
+        onOpenContent={(arg) => handleOpenContent(arg.id, arg.type)}
+      />
+    );
   } else if (viewingContent) {
     content = (
       <ContentView
@@ -1080,8 +1198,8 @@ function App() {
         activeSection={activeSection}
         handleReboot={handleReboot}
         isAuthenticated={isAuthenticated}
-          isError={isError}
-          errorMessage={errorMessage}
+        isError={isError}
+        errorMessage={errorMessage}
       />
       {isAuthenticated && !showConnectionLostScreen && !showTutorial && (
         <UpdateCheckNotification
@@ -1138,6 +1256,20 @@ function App() {
                               />
                             ) : null}
                           </>
+                        )}
+                      {!displayNetworkBanner &&
+                        !showConnectorModal &&
+                        !showTutorial &&
+                        !powerMenuVisible &&
+                        !isUpdateScreenVisible &&
+                        !showConnectionLostScreen &&
+                        !showTetheringScreen && (
+
+                          <ListeningOverlay
+                            show={listeningOverlayVisible}
+                            onClose={() => setListeningOverlayVisible(false)}
+                            onTranscript={handleVoiceTranscript}
+                          />
                         )}
                       <NetworkBanner visible={displayNetworkBanner} />
                       <DeviceSwitcherModal

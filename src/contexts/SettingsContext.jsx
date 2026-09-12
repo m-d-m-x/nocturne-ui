@@ -35,6 +35,9 @@ export function SettingsProvider({ children }) {
     analyticsEnabled: getDefaultSettingValue("analyticsEnabled", true),
     autoTimezoneEnabled: getDefaultSettingValue("autoTimezoneEnabled", true),
     textSize: getTextSetting("textSize", "1"),
+    voiceSearchEnabled: getDefaultSettingValue("voiceSearchEnabled", false),
+    voiceSttProvider: getTextSetting("voiceSttProvider", "groq"),
+    voiceSttApiKey: getTextSetting("voiceSttApiKey", ""),
   });
 
   useEffect(() => {

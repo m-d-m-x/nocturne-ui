@@ -27,6 +27,7 @@ import {
 } from "../common/icons";
 import AccountInfo from "./AccountInfo";
 import SoftwareUpdate from "./SoftwareUpdate";
+import VoiceSearch from "./VoiceSearch";
 import WiFiNetworks from "./network/WiFiNetworks";
 import BluetoothDevices from "./network/BluetoothDevices";
 import { useSettings } from "../../contexts/SettingsContext";
@@ -131,6 +132,17 @@ const settingsStructure = {
           type: "custom",
           component: BluetoothDevices,
         },
+      },
+    ],
+  },
+  voice: {
+    title: "Voice Search",
+    icon: SettingsGeneralIcon,
+    items: [
+      {
+        id: "voice-search",
+        type: "custom",
+        component: VoiceSearch,
       },
     ],
   },

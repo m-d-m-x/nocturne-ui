@@ -20,12 +20,14 @@
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.3.0",
     "react-simple-keyboard": "^3.8.88",
+    "react-speech-recognition": "^4.0.1",
     "tailwindcss": "^3.4.17"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.11",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
+    "@types/react-speech-recognition": "^3.9.6",
     "@vitejs/plugin-legacy": "^6.1.1",
     "@vitejs/plugin-react-swc": "^3.8.0",
     "eslint": "^9.21.0",
