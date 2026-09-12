@@ -641,13 +641,13 @@ const ContentView = ({
         <CarThingIcon className="h-16 w-auto mb-2" />
         <h3
           className="text-white truncate tracking-tight"
-          style={{ fontSize: "36px", fontWeight: "560" }}
+          style={{ fontSize: `calc(var(--text-scale)*36px)`, fontWeight: "560" }}
         >
           Error Loading Content
         </h3>
         <p
           className="text-white/60 truncate tracking-tight"
-          style={{ fontSize: "24px", fontWeight: "560" }}
+          style={{ fontSize: `calc(var(--text-scale)*24px)`, fontWeight: "560" }}
         >
           {error}
         </p>
@@ -720,13 +720,13 @@ const ContentView = ({
           {getMappingStatusText()}
           <h4
             className="mt-2 text-white truncate tracking-tight"
-            style={{ fontSize: "36px", fontWeight: "580", maxWidth: "280px" }}
+            style={{ fontSize: `calc(var(--text-scale)*36px)`, fontWeight: "580", maxWidth: "280px" }}
           >
             {content.name}
           </h4>
           <h4
             className="text-white/60 truncate tracking-tight"
-            style={{ fontSize: "28px", fontWeight: "560", maxWidth: "280px" }}
+            style={{ fontSize: `calc(var(--text-scale)*28px)`, fontWeight: "560", maxWidth: "280px" }}
           >
             {getSubtitle()}
           </h4>
@@ -748,14 +748,14 @@ const ContentView = ({
                 selectedTrackIndex === index ? "scale-105" : ""
               }`}
               onClick={() => (track.uri ? handleTrackPlay(track, index) : null)}
-              style={{ transition: "transform 0.2s ease-out" }}
+              style={{ transition: "transform 0.2s ease-out", borderRadius: '10px', background: selectedTrackIndex === index ? "rgb(255 255 255 / 10%)" : "" }}
               data-track-index={index}
             >
               <div
                 className="text-3xl font-semibold text-center text-white/60 mr-6 mt-3 flex justify-center"
                 style={{
                   minWidth: "3rem",
-                  fontSize: "32px",
+                  fontSize: `calc(var(--text-scale)*32px)`,
                   fontWeight: "580",
                 }}
               >
@@ -778,7 +778,7 @@ const ContentView = ({
                   {selectedTrackIndex === index ? (
                     <div
                       style={{
-                        fontSize: "32px",
+                        fontSize: `calc(var(--text-scale)*32px)`,
                         fontWeight: "580",
                         maxWidth: "280px",
                       }}
@@ -795,7 +795,7 @@ const ContentView = ({
                     <p
                       className="text-white truncate tracking-tight"
                       style={{
-                        fontSize: "32px",
+                        fontSize: `calc(var(--text-scale)*32px)`,
                         fontWeight: "580",
                         maxWidth: "280px",
                       }}
@@ -808,7 +808,7 @@ const ContentView = ({
                   {contentType === "show" ? (
                     <p
                       className="text-white/60 truncate tracking-tight"
-                      style={{ fontSize: "28px", fontWeight: "560" }}
+                      style={{ fontSize: `calc(var(--text-scale)*28px)`, fontWeight: "560" }}
                     >
                       {track.release_date
                         ? new Date(track.release_date).toLocaleDateString(
@@ -829,7 +829,7 @@ const ContentView = ({
                         className={`text-white/60 truncate tracking-tight ${
                           artistIndex < track.artists.length - 1 ? "mr-2" : ""
                         }`}
-                        style={{ fontSize: "28px", fontWeight: "560" }}
+                        style={{ fontSize: `calc(var(--text-scale)*28px)`, fontWeight: "560" }}
                       >
                         {artist?.name === null && artist?.type
                           ? artist.type
@@ -851,7 +851,7 @@ const ContentView = ({
                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mr-4"></div>
                 <p
                   className="text-white/60"
-                  style={{ fontSize: "24px", fontWeight: "560" }}
+                  style={{ fontSize: `calc(var(--text-scale)*24px)`, fontWeight: "560" }}
                 >
                   Loading more {contentType === "show" ? "episodes" : "tracks"}
                   ...

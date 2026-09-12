@@ -243,11 +243,11 @@ const NetworkScreen = ({ isConnectionLost = true, onConnectionRestored }) => {
                       : "Connection Lost"}
                   </h2>
                   {showWifiConnectMessage ? (
-                    <p className="text-[28px] text-white/60 tracking-tight w-[32rem]">
+                    <p className="text-[length:calc(var(--text-scale)*28px)] text-white/60 tracking-tight w-[32rem]">
                       Connecting to Wi-Fi...
                     </p>
                   ) : (
-                    <p className="text-[28px] text-white/60 tracking-tight w-[32rem]">
+                    <p className="text-[length:calc(var(--text-scale)*28px)] text-white/60 tracking-tight w-[32rem]">
                       Enable Bluetooth Tethering and connect to "Nocturne" in
                       your phone's settings.
                     </p>
@@ -257,7 +257,7 @@ const NetworkScreen = ({ isConnectionLost = true, onConnectionRestored }) => {
                     onClick={openNetworkSettings}
                     className="mt-4 bg-white/10 hover:bg-white/20 transition-colors duration-200 rounded-xl px-6 py-3 border border-white/10 focus:outline-none"
                   >
-                    <span className="text-[28px] font-[560] text-white tracking-tight">
+                    <span className="text-[length:calc(var(--text-scale)*28px)] font-[560] text-white tracking-tight">
                       Network Settings
                     </span>
                   </button>
@@ -283,7 +283,7 @@ const NetworkScreen = ({ isConnectionLost = true, onConnectionRestored }) => {
               >
                 <ChevronLeftIcon className="w-8 h-8 text-white" />
               </button>
-              <h2 className="text-[46px] font-[580] text-white tracking-tight">
+              <h2 className="text-[length:calc(var(--text-scale)*46px)] font-[580] text-white tracking-tight">
                 Network
               </h2>
             </div>
@@ -300,7 +300,7 @@ const NetworkScreen = ({ isConnectionLost = true, onConnectionRestored }) => {
                     <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center">
                       <option.icon className="w-7 h-7 text-white" />
                     </div>
-                    <span className="text-[32px] ml-4 font-[580] text-white tracking-tight">
+                    <span className="text-[length:calc(var(--text-scale)*32px)] ml-4 font-[580] text-white tracking-tight">
                       {option.title}
                     </span>
                   </div>
@@ -327,7 +327,7 @@ const NetworkScreen = ({ isConnectionLost = true, onConnectionRestored }) => {
               >
                 <ChevronLeftIcon className="w-8 h-8 text-white" />
               </button>
-              <h2 className="text-[46px] font-[580] text-white tracking-tight">
+              <h2 className="text-[length:calc(var(--text-scale)*46px)] font-[580] text-white tracking-tight">
                 {activeSubItem?.title}
               </h2>
             </div>

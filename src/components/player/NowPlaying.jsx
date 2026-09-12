@@ -725,14 +725,14 @@ export default function NowPlaying({
               <div className="max-w-[400px]">
                 <ScrollingText
                   text={trackName}
-                  className="text-[40px] font-[580] text-white tracking-tight"
+                  className="text-[length:calc(var(--text-scale)*40px)] font-[580] text-white tracking-tight"
                   maxWidth="400px"
                   pauseDuration={1000}
                   pixelsPerSecond={40}
                 />
               </div>
               <h4
-                className={`text-[36px] font-[560] text-white/60 truncate tracking-tight max-w-[380px] ${firstArtistId ? "cursor-pointer" : ""}`}
+                className={`text-[length:calc(var(--text-scale)*36px)] font-[560] text-white/60 truncate tracking-tight max-w-[380px] ${firstArtistId ? "cursor-pointer" : ""}`}
                 onClick={() =>
                   firstArtistId &&
                   onNavigateToArtist &&
@@ -756,18 +756,18 @@ export default function NowPlaying({
                 }}
               >
                 {lyricsLoading ? (
-                  <p className="text-white text-[40px] font-[580] tracking-tight transition-colors duration-300 transform-gpu will-change-auto">
+                  <p className="text-white text-[length:calc(var(--text-scale)*40px)] font-[580] tracking-tight transition-colors duration-300 transform-gpu will-change-auto">
                     Loading lyrics...
                   </p>
                 ) : lyricsError ? (
-                  <p className="text-white text-[40px] font-[580] tracking-tight transition-colors duration-300 transform-gpu will-change-auto">
+                  <p className="text-white text-[length:calc(var(--text-scale)*40px)] font-[580] tracking-tight transition-colors duration-300 transform-gpu will-change-auto">
                     Lyrics not available
                   </p>
                 ) : lyrics.length > 0 ? (
                   lyrics.map((lyric, index) => (
                     <p
                       key={index}
-                      className={`text-[40px] font-[580] tracking-tight transition-colors duration-300 transform-gpu will-change-auto ${
+                      className={`text-[length:calc(var(--text-scale)*40px)] font-[580] tracking-tight transition-colors duration-300 transform-gpu will-change-auto ${
                         index === currentLyricIndex
                           ? "text-white current-lyric-animation"
                           : index === currentLyricIndex - 1 ||
@@ -797,7 +797,7 @@ export default function NowPlaying({
                     </p>
                   ))
                 ) : (
-                  <p className="text-white text-[40px] font-[580] tracking-tight transition-colors duration-300 transform-gpu will-change-auto">
+                  <p className="text-white text-[length:calc(var(--text-scale)*40px)] font-[580] tracking-tight transition-colors duration-300 transform-gpu will-change-auto">
                     Lyrics not available
                   </p>
                 )}
@@ -836,17 +836,17 @@ export default function NowPlaying({
           <div className="flex justify-between">
             {currentPlayback && currentPlayback.item ? (
               <>
-                <span className="text-white/60 text-[20px]">
+                <span className="text-white/60 text-[length:calc(var(--text-scale)*20px)]">
                   {convertTimeToLength(progressMs, true)}
                 </span>
-                <span className="text-white/60 text-[20px]">
+                <span className="text-white/60 text-[length:calc(var(--text-scale)*20px)]">
                   {convertTimeToLength(currentPlayback.item.duration_ms, true)}
                 </span>
               </>
             ) : (
               <>
-                <span className="text-white/60 text-[20px]">--:--</span>
-                <span className="text-white/60 text-[20px]">--:--</span>
+                <span className="text-white/60 text-[length:calc(var(--text-scale)*20px)]">--:--</span>
+                <span className="text-white/60 text-[length:calc(var(--text-scale)*20px)]">--:--</span>
               </>
             )}
           </div>
@@ -892,7 +892,7 @@ export default function NowPlaying({
                         onClick={() => handleSpeedChange(speed)}
                       >
                         <div className="group flex items-center justify-between px-4 py-[16px] text-sm text-white font-[560] tracking-tight focus:outline-none outline-none">
-                          <span className="text-[24px]">{speed}x</span>
+                          <span className="text-[length:calc(var(--text-scale)*24px)]">{speed}x</span>
                           {playbackSpeed === speed && (
                             <div className="w-2 h-2 bg-white rounded-full"></div>
                           )}
@@ -993,7 +993,7 @@ export default function NowPlaying({
                 {!isPodcast && (
                   <MenuItem onClick={toggleLyrics}>
                     <div className="group flex items-center justify-between px-4 py-[16px] text-sm text-white font-[560] tracking-tight focus:outline-none outline-none">
-                      <span className="text-[28px]">
+                      <span className="text-[length:calc(var(--text-scale)*28px)]">
                         {showLyrics ? "Hide Lyrics" : "Show Lyrics"}
                       </span>
                       <LyricsIcon
@@ -1009,7 +1009,7 @@ export default function NowPlaying({
                   <>
                     <MenuItem onClick={handleToggleShuffle}>
                       <div className="group flex items-center justify-between px-4 py-[16px] text-sm text-white font-[560] tracking-tight focus:outline-none outline-none">
-                        <span className="text-[28px]">
+                        <span className="text-[length:calc(var(--text-scale)*28px)]">
                           {shuffleEnabled
                             ? "Disable Shuffle"
                             : "Enable Shuffle"}
@@ -1024,7 +1024,7 @@ export default function NowPlaying({
                     </MenuItem>
                     <MenuItem onClick={handleToggleRepeat}>
                       <div className="group flex items-center justify-between px-4 py-[16px] text-sm text-white font-[560] tracking-tight focus:outline-none outline-none">
-                        <span className="text-[28px]">
+                        <span className="text-[length:calc(var(--text-scale)*28px)]">
                           {repeatMode === "off"
                             ? "Enable Repeat"
                             : repeatMode === "context"
@@ -1052,7 +1052,7 @@ export default function NowPlaying({
                 )}
                 <MenuItem onClick={onOpenDeviceSwitcher}>
                   <div className="group flex items-center justify-between px-4 py-[16px] text-sm text-white font-[560] tracking-tight focus:outline-none outline-none">
-                    <span className="text-[28px]">Switch Device</span>
+                    <span className="text-[length:calc(var(--text-scale)*28px)]">Switch Device</span>
                     <DeviceSwitcherIcon
                       aria-hidden="true"
                       className="h-8 w-8 text-white/60"

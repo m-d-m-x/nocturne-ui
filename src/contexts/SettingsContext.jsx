@@ -5,6 +5,11 @@ const getDefaultSettingValue = (storageKey, defaultValue) => {
   return storedValue !== null ? storedValue === "true" : defaultValue;
 };
 
+const getTextSetting = (storageKey, defaultValue) => {
+  const storedValue = localStorage.getItem(storageKey);
+  return storedValue !== null ? storedValue : defaultValue;
+};
+
 const SettingsContext = createContext();
 
 export function SettingsProvider({ children }) {
@@ -29,6 +34,7 @@ export function SettingsProvider({ children }) {
     startWithNowPlaying: getDefaultSettingValue("startWithNowPlaying", false),
     analyticsEnabled: getDefaultSettingValue("analyticsEnabled", true),
     autoTimezoneEnabled: getDefaultSettingValue("autoTimezoneEnabled", true),
+    textSize: getTextSetting("textSize", "1"),
   });
 
   useEffect(() => {

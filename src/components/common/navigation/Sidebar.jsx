@@ -29,7 +29,7 @@ const SidebarItem = memo(
         </div>
       </div>
       <div>
-        <h4 className="ml-1 text-[32px] font-[580] text-white tracking-tight">
+        <h4 className="ml-1 text-[length:calc(var(--text-scale)*26px)] font-[580] text-white tracking-tight">
           {label}
         </h4>
       </div>

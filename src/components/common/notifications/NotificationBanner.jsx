@@ -58,13 +58,13 @@ const NotificationBanner = ({ notification, onDismiss }) => {
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <div className="text-[24px] font-[580] truncate">{title}</div>
+        <div className="text-[length:calc(var(--text-scale)*24px)] font-[580] truncate">{title}</div>
         {description && (
           <div
             className={
               expanded
-                ? "text-[18px] opacity-80 whitespace-pre-wrap break-words"
-                : "text-[18px] opacity-80 truncate"
+                ? "text-[length:calc(var(--text-scale)*18px)] opacity-80 whitespace-pre-wrap break-words"
+                : "text-[length:calc(var(--text-scale)*18px)] opacity-80 truncate"
             }
             ref={descriptionRef}
           >
@@ -79,7 +79,7 @@ const NotificationBanner = ({ notification, onDismiss }) => {
             if (action.onPress) action.onPress();
             onDismiss();
           }}
-          className="px-3 py-1 bg-white text-neutral-900 font-medium rounded-md flex-shrink-0 text-[20px] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+          className="px-3 py-1 bg-white text-neutral-900 font-medium rounded-md flex-shrink-0 text-[length:calc(var(--text-scale)*20px)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
         >
           {action.label}
         </button>

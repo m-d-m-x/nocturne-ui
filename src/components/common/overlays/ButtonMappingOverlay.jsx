@@ -117,7 +117,7 @@ const ButtonMappingOverlay = memo(function ButtonMappingOverlay({
                     aria-hidden="true"
                   />
                   <div
-                    className={`text-[28px] font-[560] mb-4 transition-colors duration-300 ${
+                    className={`text-[length:calc(var(--text-scale)*28px)] font-[560] mb-4 transition-colors duration-300 ${
                       isActive ? "text-white" : "text-white/60"
                     }`}
                   >

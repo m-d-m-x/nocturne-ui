@@ -178,7 +178,7 @@ const AuthScreen = ({ onAuthSuccess }) => {
             <h2 className="text-4xl text-white tracking-tight font-[580] w-[24rem]">
               Scan the QR code with your phone's camera.
             </h2>
-            <p className="text-[28px] text-white/60 tracking-tight w-[22rem]">
+            <p className="text-[length:calc(var(--text-scale)*28px)] text-white/60 tracking-tight w-[22rem]">
               You'll be redirected to Spotify to authorize Nocturne.
             </p>
           </div>

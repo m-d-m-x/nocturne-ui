@@ -495,6 +495,10 @@ function App() {
   }, []);
 
   useEffect(() => {
+    document.documentElement.style.setProperty("--text-scale", localStorage.getItem("textSize") ?? "1");
+  }, []);
+
+  useEffect(() => {
     if (showLoader) return;
     if (!isInternetConnected) return;
     if (isInfoLoading) return;

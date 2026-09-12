@@ -212,7 +212,7 @@ const LoadingScreen = ({ show = true, onComplete }) => {
           </div>
 
           {showReconnectMessage && (
-            <p className="absolute top-full left-1/2 -translate-x-1/2 mt-4 text-[22px] text-white/60 tracking-tight whitespace-nowrap">
+            <p className="absolute top-full left-1/2 -translate-x-1/2 mt-4 text-[length:calc(var(--text-scale)*22px)] text-white/60 tracking-tight whitespace-nowrap">
               Attempting to reconnect...
             </p>
           )}

@@ -23,7 +23,7 @@ const PairingScreen = ({ onAccept, onReject, pin, isConnecting }) => {
             <h2 className="text-5xl text-white tracking-tight font-[580] w-[24rem]">
               Bluetooth Pairing
             </h2>
-            <p className="text-[28px] text-white tracking-tight">
+            <p className="text-[length:calc(var(--text-scale)*28px)] text-white tracking-tight">
               Confirm that this pin matches the one on your phone.
             </p>
             <div className="mt-4 flex space-x-4 justify-center">
@@ -46,7 +46,7 @@ const PairingScreen = ({ onAccept, onReject, pin, isConnecting }) => {
         </div>
 
         <div className="flex justify-center">
-          <div className="text-[56px] font-bold text-white">{pin}</div>
+          <div className="text-[length:calc(var(--text-scale)*56px)] font-bold text-white">{pin}</div>
         </div>
       </div>
     </div>

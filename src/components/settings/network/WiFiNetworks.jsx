@@ -129,11 +129,11 @@ const WiFiNetworks = () => {
         >
           <div className="flex justify-between items-center">
             <div className="min-w-0 flex-1">
-              <h4 className="text-[28px] font-[580] text-white tracking-tight truncate pr-4">
+              <h4 className="text-[length:calc(var(--text-scale)*28px)] font-[580] text-white tracking-tight truncate pr-4">
                 {currentNetwork.ssid}
               </h4>
               {!networkStatus && (
-                <p className="text-white/60 text-[20px]">Connecting...</p>
+                <p className="text-white/60 text-[length:calc(var(--text-scale)*20px)]">Connecting...</p>
               )}
             </div>
             <div className="flex items-center space-x-3">
@@ -158,7 +158,7 @@ const WiFiNetworks = () => {
 
     return (
       <div className="mb-8">
-        <h3 className="text-[32px] font-[580] text-white tracking-tight mb-4">
+        <h3 className="text-[length:calc(var(--text-scale)*32px)] font-[580] text-white tracking-tight mb-4">
           Saved Networks
         </h3>
 
@@ -189,11 +189,11 @@ const WiFiNetworks = () => {
               >
                 <div className="flex justify-between items-center">
                   <div className="min-w-0 flex-1">
-                    <h4 className="text-[28px] font-[580] text-white tracking-tight truncate pr-4">
+                    <h4 className="text-[length:calc(var(--text-scale)*28px)] font-[580] text-white tracking-tight truncate pr-4">
                       {network.ssid}
                     </h4>
                     {!inRange && (
-                      <p className="text-white/60 text-[20px]">Out of Range</p>
+                      <p className="text-white/60 text-[length:calc(var(--text-scale)*20px)]">Out of Range</p>
                     )}
                   </div>
                   <div className="flex items-center">
@@ -245,7 +245,7 @@ const WiFiNetworks = () => {
     return (
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-[32px] font-[580] text-white tracking-tight">
+          <h3 className="text-[length:calc(var(--text-scale)*32px)] font-[580] text-white tracking-tight">
             Available Networks
           </h3>
           <button
@@ -269,7 +269,7 @@ const WiFiNetworks = () => {
             >
               <div className="flex justify-between items-center">
                 <div className="min-w-0 flex-1">
-                  <h4 className="text-[28px] font-[580] text-white tracking-tight truncate pr-4">
+                  <h4 className="text-[length:calc(var(--text-scale)*28px)] font-[580] text-white tracking-tight truncate pr-4">
                     {network.ssid}
                   </h4>
                 </div>
@@ -291,17 +291,17 @@ const WiFiNetworks = () => {
     return (
       <div className="w-full flex flex-col items-center justify-center">
         <WifiOffIcon className="w-12 h-12 text-white/80 mb-4" />
-        <p className="text-[36px] font-[580] text-white tracking-tight text-center mb-2 w-full">
+        <p className="text-[length:calc(var(--text-scale)*36px)] font-[580] text-white tracking-tight text-center mb-2 w-full">
           Wi-Fi Unavailable
         </p>
-        <p className="text-white/80 text-[28px] tracking-tight text-center w-full mb-6 px-0">
+        <p className="text-white/80 text-[length:calc(var(--text-scale)*28px)] tracking-tight text-center w-full mb-6 px-0">
           Wi-Fi usage requires Nocturne Connector on a Raspberry Pi.
         </p>
         <button
           onClick={() => setShowConnectorModal(true)}
           className="bg-white/10 rounded-xl hover:bg-white/20 transition-colors border border-white/10 px-6 py-3 focus:outline-none"
         >
-          <span className="text-[28px] font-[560] text-white tracking-tight">
+          <span className="text-[length:calc(var(--text-scale)*28px)] font-[560] text-white tracking-tight">
             Learn More
           </span>
         </button>
@@ -332,10 +332,10 @@ const WiFiNetworks = () => {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <WifiOffIcon className="w-12 h-12 text-white/40 mb-4" />
-        <p className="text-white/60 text-[28px] mb-6">No networks found</p>
+        <p className="text-white/60 text-[length:calc(var(--text-scale)*28px)] mb-6">No networks found</p>
         <button
           onClick={() => scanNetworks(true)}
-          className="bg-white/10 hover:bg-white/20 transition-colors rounded-xl px-6 py-3 text-[28px] font-[560] text-white flex items-center space-x-2 focus:outline-none"
+          className="bg-white/10 hover:bg-white/20 transition-colors rounded-xl px-6 py-3 text-[length:calc(var(--text-scale)*28px)] font-[560] text-white flex items-center space-x-2 focus:outline-none"
           disabled={isScanning || isConnecting}
         >
           <RefreshIcon
@@ -366,12 +366,12 @@ const WiFiNetworks = () => {
             <div className="text-center">
               <DialogTitle
                 as="h3"
-                className="text-[36px] font-[560] tracking-tight text-white"
+                className="text-[length:calc(var(--text-scale)*36px)] font-[560] tracking-tight text-white"
               >
                 Forget Network?
               </DialogTitle>
               <div className="mt-2">
-                <p className="text-[28px] font-[560] tracking-tight text-white/60">
+                <p className="text-[length:calc(var(--text-scale)*28px)] font-[560] tracking-tight text-white/60">
                   You will need to re-enter the password to connect again.
                 </p>
               </div>
@@ -383,7 +383,7 @@ const WiFiNetworks = () => {
                   setShowForgetDialog(false);
                   setSelectedNetworkId(null);
                 }}
-                className="inline-flex w-full justify-center px-3 py-3 text-[28px] font-[560] tracking-tight text-[#6c8bd5] border-r border-slate-100/25 bg-transparent hover:bg-white/5 focus:outline-none"
+                className="inline-flex w-full justify-center px-3 py-3 text-[length:calc(var(--text-scale)*28px)] font-[560] tracking-tight text-[#6c8bd5] border-r border-slate-100/25 bg-transparent hover:bg-white/5 focus:outline-none"
               >
                 Cancel
               </button>
@@ -396,7 +396,7 @@ const WiFiNetworks = () => {
                   setShowForgetDialog(false);
                   setSelectedNetworkId(null);
                 }}
-                className="inline-flex w-full justify-center px-3 py-3 text-[28px] font-[560] tracking-tight text-[#fe3b30] bg-transparent hover:bg-white/5 focus:outline-none"
+                className="inline-flex w-full justify-center px-3 py-3 text-[length:calc(var(--text-scale)*28px)] font-[560] tracking-tight text-[#fe3b30] bg-transparent hover:bg-white/5 focus:outline-none"
               >
                 Forget
               </button>
@@ -412,10 +412,10 @@ const WiFiNetworks = () => {
       {confirmForgetDialog}
       {error && (
         <div className="bg-red-900/40 border border-red-700/60 rounded-xl p-4 mb-4">
-          <p className="text-white/80 text-[20px]">{error}</p>
+          <p className="text-white/80 text-[length:calc(var(--text-scale)*20px)]">{error}</p>
           <button
             onClick={() => scanNetworks(false)}
-            className="bg-transparent border-none text-white/60 hover:text-white text-[18px] mt-2 underline transition-colors focus:outline-none"
+            className="bg-transparent border-none text-white/60 hover:text-white text-[length:calc(var(--text-scale)*18px)] mt-2 underline transition-colors focus:outline-none"
           >
             Retry
           </button>
