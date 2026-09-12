@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useNocturned } from "../../../hooks/useNocturned";
 import { useSettings } from "../../../contexts/SettingsContext";
+import { classifyIntent, intentLabel } from "../../../utils/voiceIntent";
 
 const PHASE_IDLE = "idle";
 const PHASE_LISTENING = "listening";
 const PHASE_PROCESSING = "processing";
+const PHASE_COMMANDING = "commanding";
+const PHASE_CONFIRMED = "confirmed";
 const PHASE_ERROR = "error";
 
-function ListeningOverlay({ show, onClose, onTranscript }) {
+function ListeningOverlay({ show, onClose, onCommand }) {
   const { settings } = useSettings();
   const { apiRequest, addMessageListener, removeMessageListener } =
     useNocturned();
@@ -15,22 +18,31 @@ function ListeningOverlay({ show, onClose, onTranscript }) {
   const [mounted, setMounted] = useState(show);
   const [phase, setPhase] = useState(PHASE_IDLE);
   const [errMsg, setErrMsg] = useState("");
+  const [confirmedLabel, setConfirmedLabel] = useState("");
   const sessionActiveRef = useRef(false);
   const listenerIdRef = useRef(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     let unmountTimer;
     if (show) {
       setMounted(true);
       document.body.classList.add("stop-scrolling");
-    } else if (mounted) {
+    } else if (mounted && (phase === PHASE_IDLE || phase === PHASE_LISTENING)) {
       unmountTimer = setTimeout(() => setMounted(false), 300);
       setTimeout(() => document.body.classList.remove("stop-scrolling"), 300);
     }
     return () => {
       if (unmountTimer) clearTimeout(unmountTimer);
     };
-  }, [show, mounted]);
+  }, [show, mounted, phase]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -93,19 +105,63 @@ function ListeningOverlay({ show, onClose, onTranscript }) {
       const error = data.payload?.error;
 
       if (error) {
+        if (!mountedRef.current) return;
         setErrMsg(error);
         setPhase(PHASE_ERROR);
-        setTimeout(() => onClose?.(), 3000);
+        setTimeout(() => {
+          if (mountedRef.current) onClose?.();
+        }, 3000);
         return;
       }
 
       if (text) {
-        onTranscript?.(text);
-        onClose?.();
+        if (!mountedRef.current) return;
+        setPhase(PHASE_COMMANDING);
+
+        const provider = settings.voiceSttProvider || "groq";
+        const apiKey = (settings.voiceSttApiKey || "").trim();
+
+        classifyIntent(text, provider, apiKey)
+          .then((intent) => {
+            if (!mountedRef.current) return;
+            const label = intentLabel(intent);
+            setConfirmedLabel(label);
+            setPhase(PHASE_CONFIRMED);
+            onCommand?.(intent);
+            const delay = intent.type === "search" ? 600 : 1200;
+            setTimeout(() => {
+              if (mountedRef.current) {
+                document.body.classList.remove("stop-scrolling");
+                document.body.style.overflow = "";
+                document.body.style.touchAction = "";
+                setMounted(false);
+                onClose?.();
+              }
+            }, delay);
+          })
+          .catch(() => {
+            if (!mountedRef.current) return;
+            const fallback = { type: "search", args: { query: text } };
+            setConfirmedLabel(intentLabel(fallback));
+            setPhase(PHASE_CONFIRMED);
+            onCommand?.(fallback);
+            setTimeout(() => {
+              if (mountedRef.current) {
+                document.body.classList.remove("stop-scrolling");
+                document.body.style.overflow = "";
+                document.body.style.touchAction = "";
+                setMounted(false);
+                onClose?.();
+              }
+            }, 600);
+          });
       } else {
+        if (!mountedRef.current) return;
         setErrMsg("No speech detected");
         setPhase(PHASE_ERROR);
-        setTimeout(() => onClose?.(), 2500);
+        setTimeout(() => {
+          if (mountedRef.current) onClose?.();
+        }, 2500);
       }
     });
     listenerIdRef.current = id;
@@ -113,7 +169,7 @@ function ListeningOverlay({ show, onClose, onTranscript }) {
     return () => {
       if (listenerIdRef.current) removeMessageListener(listenerIdRef.current);
     };
-  }, [addMessageListener, removeMessageListener, onClose, onTranscript]);
+  }, [addMessageListener, removeMessageListener, onClose, onCommand, settings.voiceSttProvider, settings.voiceSttApiKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,11 +234,12 @@ function ListeningOverlay({ show, onClose, onTranscript }) {
   if (!mounted) return null;
 
   let label = "";
-  if (phase === PHASE_LISTENING) label = "Listening";
-  else if (phase === PHASE_PROCESSING) label = "Searching…";
-  else if (phase === PHASE_ERROR) label = errMsg;
-
-  const showLoader = phase === PHASE_LISTENING || phase === PHASE_PROCESSING;
+  let showLoader = false;
+  if (phase === PHASE_LISTENING) { label = "Listening"; showLoader = true; }
+  else if (phase === PHASE_PROCESSING) { label = "Transcribing…"; showLoader = true; }
+  else if (phase === PHASE_COMMANDING) { label = "Thinking…"; showLoader = true; }
+  else if (phase === PHASE_CONFIRMED) { label = confirmedLabel; showLoader = false; }
+  else if (phase === PHASE_ERROR) { label = errMsg; showLoader = false; }
 
   return (
     <div

@@ -1028,15 +1028,47 @@ function App() {
     setActiveSection("nowPlaying");
   };
 
-  const handleVoiceTranscript = useCallback(
-    (text) => {
-      if (!text || !text.trim()) return;
-      setContentSourceSection(activeSection);
-      setViewingContent(null);
-      setActiveSection("search");
-      searchSpotify(text);
+  const handleVoiceCommand = useCallback(
+    async (intent) => {
+      switch (intent.type) {
+        case "pause":
+          await playerControls.pausePlayback();
+          break;
+        case "resume":
+          await playerControls.playTrack(null);
+          break;
+        case "skip":
+          await playerControls.skipToNext();
+          setTimeout(() => refreshPlaybackState(), 500);
+          break;
+        case "previous":
+          await playerControls.skipToPrevious();
+          setTimeout(() => refreshPlaybackState(), 500);
+          break;
+        case "volume_up":
+          await playerControls.setVolume(Math.min(100, playerControls.volume + 15));
+          break;
+        case "volume_down":
+          await playerControls.setVolume(Math.max(0, playerControls.volume - 15));
+          break;
+        case "volume_set":
+          if (typeof intent.args?.level === "number") {
+            await playerControls.setVolume(intent.args.level);
+          }
+          break;
+        default: {
+          const query = intent.args?.query || "";
+          if (query) {
+            setContentSourceSection(activeSection);
+            setViewingContent(null);
+            setActiveSection("search");
+            searchSpotify(query);
+          }
+          break;
+        }
+      }
     },
-    [activeSection, searchSpotify],
+    [playerControls, activeSection, searchSpotify, refreshPlaybackState],
   );
 
   const handleNavigateToArtist = (id, type) => {
@@ -1268,7 +1300,7 @@ function App() {
                           <ListeningOverlay
                             show={listeningOverlayVisible}
                             onClose={() => setListeningOverlayVisible(false)}
-                            onTranscript={handleVoiceTranscript}
+                            onCommand={handleVoiceCommand}
                           />
                         )}
                       <NetworkBanner visible={displayNetworkBanner} />
