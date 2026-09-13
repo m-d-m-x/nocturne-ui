@@ -34,7 +34,6 @@ import {
   RepeatOneIcon,
   SpeedIcon,
 } from "../common/icons";
-import { generateRandomString } from "../../utils/helpers";
 
 export default function NowPlaying({
   accessToken,
@@ -218,30 +217,14 @@ export default function NowPlaying({
 
       setIsStartingPlayback(true);
 
-      const connectEndpoint = `https://gue1-spclient.spotify.com/connect-state/v1/devices/hobs_${generateRandomString(40)}`;
-
-      const devicesRes = await fetch(connectEndpoint, {
-        method: "PUT",
-        headers: {
-          accept: "application/json",
-          "accept-language": "en-US,en;q=0.9",
-          authorization: `Bearer ${accessToken}`,
-          "content-type": "application/json",
-          "x-spotify-connection-id": generateRandomString(148),
-        },
-        body: JSON.stringify({
-          member_type: "CONNECT_STATE",
-          device: {
-            device_info: {
-              capabilities: {
-                can_be_player: false,
-                hidden: true,
-                needs_full_player_state: true,
-              },
-            },
+      const devicesRes = await fetch(
+        "https://api.spotify.com/v1/me/player/devices",
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
           },
-        }),
-      });
+        },
+      );
 
       if (!devicesRes.ok) {
         console.error("Failed to retrieve devices", devicesRes.status);
@@ -250,7 +233,7 @@ export default function NowPlaying({
       }
 
       const data = await devicesRes.json();
-      const devicesArray = Object.values(data.devices || {});
+      const devicesArray = data.devices || [];
 
       if (devicesArray.length === 0) {
         setIsStartingPlayback(false);
@@ -268,7 +251,7 @@ export default function NowPlaying({
       }
 
       const target = activeDevice || devicesArray[0];
-      const targetDeviceId = target.device_id || target.id;
+      const targetDeviceId = target.id;
 
       const transferRes = await fetch("https://api.spotify.com/v1/me/player", {
         method: "PUT",

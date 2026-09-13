@@ -14,8 +14,6 @@ import {
   GamepadIcon,
   CarIcon,
 } from "../common/icons";
-import { generateRandomString } from "../../utils/helpers";
-
 const DeviceSwitcherModal = ({
   isOpen,
   onClose,
@@ -54,28 +52,11 @@ const DeviceSwitcherModal = ({
     try {
       setIsLoading(true);
       const response = await fetch(
-        `https://gue1-spclient.spotify.com/connect-state/v1/devices/hobs_${generateRandomString(40)}`,
+        "https://api.spotify.com/v1/me/player/devices",
         {
-          method: "PUT",
           headers: {
-            accept: "application/json",
-            "accept-language": "en-US,en;q=0.9",
-            authorization: `Bearer ${accessToken}`,
-            "content-type": "application/json",
-            "x-spotify-connection-id": generateRandomString(148),
+            Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({
-            member_type: "CONNECT_STATE",
-            device: {
-              device_info: {
-                capabilities: {
-                  can_be_player: false,
-                  hidden: true,
-                  needs_full_player_state: true,
-                },
-              },
-            },
-          }),
         },
       );
 
@@ -84,7 +65,7 @@ const DeviceSwitcherModal = ({
       }
 
       const data = await response.json();
-      setDevices(Object.values(data.devices || {}));
+      setDevices(data.devices || []);
     } catch (error) {
       console.error("Error fetching devices:", error);
     } finally {
@@ -219,14 +200,14 @@ const DeviceSwitcherModal = ({
                     {devices.map((device) => (
                       <button
                         key={device.id}
-                        onClick={() => handleDeviceSelect(device.device_id)}
+                        onClick={() => handleDeviceSelect(device.id)}
                         disabled={isTransferring}
                         className="w-full flex items-center justify-between p-4 mb-2 rounded-xl hover:bg-white hover:bg-opacity-5 transition-colors disabled:opacity-50"
                         style={{ backgroundColor: "transparent" }}
                       >
                         <div className="flex items-center">
                           <div style={{ marginRight: "12px" }}>
-                            {getDeviceIcon(device.device_type)}
+                            {getDeviceIcon(device.type)}
                           </div>
                           <div className="text-left">
                             <p

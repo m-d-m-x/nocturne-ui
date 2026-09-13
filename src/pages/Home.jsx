@@ -546,7 +546,7 @@ export default function Home({
                       Now Playing
                     </>
                   ) : (
-                    `${formatFollowerCount(artist.followers.total)} Followers`
+                    `${formatFollowerCount(artist.followers?.total ?? 0)} Followers`
                   )}
                 </h4>
               </div>
