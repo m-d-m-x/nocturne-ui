@@ -1,34 +1,39 @@
-import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  oauthAuthorize,
-  checkAuthStatus,
+  createContext,
+  createElement,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
+import {
+  buildAuthorizeUrl,
+  consumeRedirectParams,
+  exchangeCodeForToken,
   refreshAccessToken,
 } from "../services/authService";
 import { waitForStableNetwork } from "../utils/networkAwareRequest";
 
 const authInitializationState = {
-  initializing: false,
   refreshing: false,
   lastRefreshTime: 0,
   lastRefreshAttemptFailed: false,
   networkRestoreTimeout: null,
+  redirectHandled: false,
 };
 
 const DNS_READY_DELAY = 5000;
 
-export function useAuth() {
+function useAuthState() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [accessToken, setAccessToken] = useState(null);
   const [refreshToken, setRefreshToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [authData, setAuthData] = useState(null);
   const [tokenRefreshing, setTokenRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  const pollingIntervalRef = useRef(null);
-
   const refreshTimerRef = useRef(null);
-  const currentDeviceCodeRef = useRef(null);
   const initCalledRef = useRef(false);
 
   const shouldRefreshToken = useCallback(() => {
@@ -44,6 +49,36 @@ export function useAuth() {
 
   const tokenReady =
     isAuthenticated && !tokenRefreshing && !shouldRefreshToken();
+
+  const persistSession = useCallback((data) => {
+    localStorage.setItem("spotifyAccessToken", data.access_token);
+    if (data.refresh_token) {
+      localStorage.setItem("spotifyRefreshToken", data.refresh_token);
+    }
+    localStorage.setItem("spotifyAuthType", "spotify");
+
+    const expiryDate = new Date();
+    expiryDate.setSeconds(
+      expiryDate.getSeconds() + (data.expires_in || 3600) - 600,
+    );
+    localStorage.setItem("spotifyTokenExpiry", expiryDate.toISOString());
+
+    setAccessToken(data.access_token);
+    if (data.refresh_token) {
+      setRefreshToken(data.refresh_token);
+    }
+    setIsAuthenticated(true);
+    authInitializationState.lastRefreshAttemptFailed = false;
+
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(
+      new CustomEvent("accessTokenUpdated", {
+        detail: { accessToken: data.access_token },
+      }),
+    );
+
+    return expiryDate;
+  }, []);
 
   const refreshTokens = useCallback(async () => {
     setTokenRefreshing(true);
@@ -73,42 +108,15 @@ export function useAuth() {
         await waitForStableNetwork(10000);
       }
 
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-        currentDeviceCodeRef.current = null;
-      }
-
       const data = await refreshAccessToken(storedRefreshToken);
 
       if (data.access_token) {
-        setAccessToken(data.access_token);
-        localStorage.setItem("spotifyAccessToken", data.access_token);
-
-        if (data.refresh_token) {
-          localStorage.setItem("spotifyRefreshToken", data.refresh_token);
-          setRefreshToken(data.refresh_token);
-        }
-
-        const expiryDate = new Date();
-        expiryDate.setSeconds(
-          expiryDate.getSeconds() + (data.expires_in || 3600) - 600,
-        );
-        localStorage.setItem("spotifyTokenExpiry", expiryDate.toISOString());
-
-        setIsAuthenticated(true);
+        const expiryDate = persistSession(data);
         scheduleTokenRefresh(expiryDate);
-
-        window.dispatchEvent(
-          new CustomEvent("accessTokenUpdated", {
-            detail: { accessToken: data.access_token },
-          }),
-        );
 
         authInitializationState.refreshing = false;
         setTokenRefreshing(false);
         authInitializationState.lastRefreshTime = now;
-        authInitializationState.lastRefreshAttemptFailed = false;
         return true;
       }
       authInitializationState.refreshing = false;
@@ -125,7 +133,8 @@ export function useAuth() {
       authInitializationState.lastRefreshAttemptFailed = true;
       return false;
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistSession]);
 
   const scheduleTokenRefresh = useCallback(
     (expiryDate) => {
@@ -154,12 +163,6 @@ export function useAuth() {
   );
 
   const logout = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-      currentDeviceCodeRef.current = null;
-    }
-
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = null;
@@ -169,6 +172,8 @@ export function useAuth() {
     localStorage.removeItem("spotifyRefreshToken");
     localStorage.removeItem("spotifyTokenExpiry");
     localStorage.removeItem("spotifyAuthType");
+    sessionStorage.removeItem("spotifyCodeVerifier");
+    sessionStorage.removeItem("spotifyAuthState");
 
     window.dispatchEvent(new Event("storage"));
     window.dispatchEvent(new Event("userLoggedOut"));
@@ -176,7 +181,17 @@ export function useAuth() {
     setAccessToken(null);
     setRefreshToken(null);
     setIsAuthenticated(false);
-    setAuthData(null);
+  }, []);
+
+  const login = useCallback(async () => {
+    setError(null);
+    try {
+      const authorizeUrl = await buildAuthorizeUrl();
+      window.location.href = authorizeUrl;
+    } catch (err) {
+      console.error("Failed to start Spotify login:", err);
+      setError(err.message || "Failed to start Spotify login");
+    }
   }, []);
 
   useEffect(() => {
@@ -184,13 +199,65 @@ export function useAuth() {
       if (initCalledRef.current) return;
       initCalledRef.current = true;
 
+      if (!authInitializationState.redirectHandled) {
+        authInitializationState.redirectHandled = true;
+        const redirect = consumeRedirectParams();
+
+        if (redirect?.error) {
+          setError(
+            redirect.error === "access_denied"
+              ? "Spotify login was cancelled"
+              : redirect.error,
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        if (redirect?.code) {
+          const storedState = sessionStorage.getItem("spotifyAuthState");
+          const storedVerifier = sessionStorage.getItem(
+            "spotifyCodeVerifier",
+          );
+          sessionStorage.removeItem("spotifyAuthState");
+          sessionStorage.removeItem("spotifyCodeVerifier");
+
+          if (!storedVerifier || redirect.state !== storedState) {
+            setError("Spotify login failed: state mismatch");
+            setIsLoading(false);
+            return;
+          }
+
+          try {
+            const data = await exchangeCodeForToken(
+              redirect.code,
+              storedVerifier,
+            );
+            const expiryDate = persistSession(data);
+            scheduleTokenRefresh(expiryDate);
+          } catch (err) {
+            console.error("Failed to complete Spotify login:", err);
+            setError(err.message || "Failed to complete Spotify login");
+          }
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const storedAccessToken = localStorage.getItem("spotifyAccessToken");
-      const storedRefreshToken = localStorage.getItem("spotifyRefreshToken");
+      let storedRefreshToken = localStorage.getItem("spotifyRefreshToken");
+
+      if (!storedRefreshToken && import.meta.env.VITE_SPOTIFY_REFRESH_TOKEN) {
+        storedRefreshToken = import.meta.env.VITE_SPOTIFY_REFRESH_TOKEN;
+        localStorage.setItem("spotifyRefreshToken", storedRefreshToken);
+      }
 
       if (storedAccessToken && storedRefreshToken) {
         setAccessToken(storedAccessToken);
         setRefreshToken(storedRefreshToken);
         setIsAuthenticated(true);
+      } else if (storedRefreshToken) {
+        setRefreshToken(storedRefreshToken);
+        await refreshTokens();
       }
 
       setIsLoading(false);
@@ -202,110 +269,9 @@ export function useAuth() {
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
       }
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
     };
-  }, [refreshTokens]);
-
-  const initAuth = useCallback(async () => {
-    try {
-      if (authInitializationState.initializing) return null;
-      authInitializationState.initializing = true;
-
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-        currentDeviceCodeRef.current = null;
-      }
-
-      setIsLoading(true);
-      setError(null);
-
-      const auth = await oauthAuthorize();
-      setAuthData(auth);
-
-      authInitializationState.initializing = false;
-      return auth;
-    } catch (error) {
-      setError("Failed to initialize authentication");
-      console.error("Auth initialization failed:", error);
-      authInitializationState.initializing = false;
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const pollAuthStatus = useCallback(
-    (deviceCode) => {
-      if (isAuthenticated) return () => {};
-
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-
-      currentDeviceCodeRef.current = deviceCode;
-
-      const intervalTime = (authData?.interval || 5) * 1000;
-
-      const poll = async () => {
-        if (isAuthenticated || currentDeviceCodeRef.current !== deviceCode) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
-          return;
-        }
-
-        try {
-          const data = await checkAuthStatus(deviceCode);
-
-          if (data.access_token) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-            currentDeviceCodeRef.current = null;
-
-            localStorage.setItem("spotifyAccessToken", data.access_token);
-            localStorage.setItem("spotifyRefreshToken", data.refresh_token);
-            localStorage.setItem("spotifyAuthType", "spotify");
-
-            const expiryDate = new Date();
-            expiryDate.setSeconds(
-              expiryDate.getSeconds() + (data.expires_in || 3600) - 600,
-            );
-            localStorage.setItem(
-              "spotifyTokenExpiry",
-              expiryDate.toISOString(),
-            );
-
-            setAccessToken(data.access_token);
-            setRefreshToken(data.refresh_token);
-            setIsAuthenticated(true);
-
-            scheduleTokenRefresh(expiryDate);
-
-            window.dispatchEvent(new Event("storage"));
-          }
-        } catch (error) {
-          if (!error.message?.includes("authorization_pending")) {
-            console.error("Auth polling error:", error);
-          }
-        }
-      };
-
-      pollingIntervalRef.current = setInterval(poll, intervalTime);
-
-      return () => {
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
-          currentDeviceCodeRef.current = null;
-        }
-      };
-    },
-    [authData, scheduleTokenRefresh, isAuthenticated],
-  );
 
   useEffect(() => {
     const handleStorageChange = () => {
@@ -332,9 +298,6 @@ export function useAuth() {
 
     return () => {
       window.removeEventListener("storage", handleStorageChange);
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
       }
@@ -445,13 +408,26 @@ export function useAuth() {
     accessToken,
     refreshToken,
     isLoading,
-    authData,
     error,
-    initAuth,
-    pollAuthStatus,
+    login,
     refreshTokens,
     logout,
     tokenReady,
     tokenRefreshing,
   };
+}
+
+const AuthContext = createContext(null);
+
+export function AuthProvider({ children }) {
+  const value = useAuthState();
+  return createElement(AuthContext.Provider, { value }, children);
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
 }
