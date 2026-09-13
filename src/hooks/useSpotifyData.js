@@ -704,14 +704,18 @@ export function useSpotifyData(
 
       abortControllerRef.current = new AbortController();
 
-      const results = await Promise.allSettled([
-        fetchRecentlyPlayed(),
-        fetchUserPlaylists(),
-        fetchTopArtists(),
-        fetchLikedSongs(),
-        fetchRadioMixes(),
-        fetchUserShows(),
-      ]);
+      const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      const results = await Promise.allSettled(
+        [
+          fetchRecentlyPlayed,
+          fetchUserPlaylists,
+          fetchTopArtists,
+          fetchLikedSongs,
+          fetchRadioMixes,
+          fetchUserShows,
+        ].map((fn, index) => delay(index * 250).then(fn)),
+      );
 
       const failedRequests = results.filter(
         (result) => result.status === "rejected",
@@ -773,7 +777,7 @@ export function useSpotifyData(
 
   useEffect(() => {
     if (skipInitialFetch) return;
-    if (accessToken && !initialDataLoaded && !isInitializing) {
+    if (effectiveToken && !initialDataLoaded) {
       loadInitialData();
     }
 
@@ -785,13 +789,7 @@ export function useSpotifyData(
         abortControllerRef.current.abort();
       }
     };
-  }, [
-    accessToken,
-    initialDataLoaded,
-    isInitializing,
-    loadInitialData,
-    skipInitialFetch,
-  ]);
+  }, [effectiveToken, initialDataLoaded, loadInitialData, skipInitialFetch]);
 
   const refreshData = useCallback(async () => {
     if (!accessToken) return;

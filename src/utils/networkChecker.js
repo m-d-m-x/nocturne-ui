@@ -13,10 +13,9 @@ let lastCheckResult = null;
 let inFlightPromise = null;
 
 async function fetchNetworkStatus() {
-  await new Promise((r) => setTimeout(r, 5000));
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 300);
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
 
     const response = await fetch(STATUS_ENDPOINT, {
       method: "GET",
