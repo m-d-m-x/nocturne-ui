@@ -24,6 +24,7 @@ let lastPodcastFetch = 0;
 let podcastFetchDebounceTimeout = null;
 let initialPlaybackFetchDone = false;
 let hasInvalidToken = false;
+let rateLimitedUntil = 0;
 
 export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
   const { isConnected: isNetworkConnected } = useNetwork();
@@ -217,6 +218,7 @@ export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
   const fetchCurrentPlayback = useCallback(
     async (forceRefresh = false) => {
       if (hasInvalidToken) return;
+      if (Date.now() < rateLimitedUntil) return;
 
       if (!accessTokenRef.current || !isNetworkConnected) {
         if (!initialStateLoadedRef.current) {
@@ -256,6 +258,13 @@ export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
           hasInvalidToken = true;
           resetPlaybackState(true);
           cleanupWebSocket();
+          return;
+        }
+
+        if (response.status === 429) {
+          const retryAfterSeconds =
+            parseInt(response.headers.get("Retry-After"), 10) || 5;
+          rateLimitedUntil = Date.now() + retryAfterSeconds * 2000;
           return;
         }
 
@@ -408,8 +417,6 @@ export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
       globalWebSocket = null;
       globalConnectionId = null;
     }
-
-    connectionErrors = 0;
 
     if (isConnecting) {
       isAttemptingReconnect = false;
