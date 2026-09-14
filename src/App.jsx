@@ -47,12 +47,12 @@ import UpdateScreen from "./components/common/UpdateScreen";
 
 export const NetworkContext = React.createContext({
   selectedNetwork: null,
-  setSelectedNetwork: () => { },
+  setSelectedNetwork: () => {},
 });
 
 export const ConnectorContext = React.createContext({
   showConnectorModal: false,
-  setShowConnectorModal: () => { },
+  setShowConnectorModal: () => {},
 });
 
 function useGlobalButtonMapping({
@@ -320,8 +320,10 @@ function useGlobalButtonMapping({
           document.dispatchEvent(kd);
           document.dispatchEvent(ku);
         } else if (extraLongPressFiredRef.current) {
+          // Releasing the dial only ends the activation gesture. The recording
+          // keeps running until nocturned's silence detector stops it, so we
+          // deliberately do not close the overlay or stop capture here.
           extraLongPressFiredRef.current = false;
-          setListeningOverlayVisible(false);
         }
 
         e.stopImmediatePropagation();
@@ -504,15 +506,14 @@ function App() {
     }
   }, [tokenReady, initialTokenRefreshDone]);
   const powerMenuVisibleRef = useRef(false);
-  const listeningOverlayVisibleRef = useRef(false);
+  // Populated below, once handleOpenDeviceSwitcher exists. useSpotifyData runs
+  // above the DeviceSwitcherContext.Provider, so this is how its player
+  // controls reach the real handler.
+  const openDeviceSwitcherRef = useRef(null);
 
   useEffect(() => {
     powerMenuVisibleRef.current = powerMenuVisible;
   }, [powerMenuVisible]);
-
-  useEffect(() => {
-    listeningOverlayVisibleRef.current = listeningOverlayVisible;
-  }, [listeningOverlayVisible]);
 
   const {
     isAuthenticated,
@@ -531,6 +532,7 @@ function App() {
     likedSongs,
     radioMixes,
     userShows,
+    savedEpisodes,
     initialDataLoaded,
     isLoading,
     errors: dataErrors,
@@ -540,6 +542,7 @@ function App() {
     activeSection,
     showLoader || !tokenReady,
     tokenReady && !showLoader,
+    openDeviceSwitcherRef,
   );
 
   const {
@@ -574,7 +577,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.style.setProperty("--text-scale", localStorage.getItem("textSize") ?? "1");
+    document.documentElement.style.setProperty(
+      "--text-scale",
+      localStorage.getItem("textSize") ?? "1",
+    );
   }, []);
 
   useEffect(() => {
@@ -598,18 +604,6 @@ function App() {
       if (!payload) return false;
       return { ...payload, id: serial };
     };
-
-    const script = document.createElement("script");
-    script.defer = true;
-    script.src = "https://p.itsnebula.net/script.js";
-    script.setAttribute(
-      "data-website-id",
-      "3465cd10-6beb-4dd9-969c-f7f44704fd18",
-    );
-    script.setAttribute("data-before-send", "umamiBeforeSend");
-    script.id = "analytics";
-
-    document.body.appendChild(script);
   }, [
     showLoader,
     isInternetConnected,
@@ -654,7 +648,10 @@ function App() {
     refreshPlaybackState,
     setActiveSection,
     isTutorialActive: showTutorial,
-    isDisabled: powerMenuVisible || isUpdating,
+    // While the listening overlay is up the recording runs to completion on its
+    // own, so the hardware buttons must go dead - otherwise a second dial press
+    // would synthesize a play/pause toggle in the middle of a voice command.
+    isDisabled: powerMenuVisible || isUpdating || listeningOverlayVisible,
     setListeningOverlayVisible,
   });
 
@@ -726,6 +723,10 @@ function App() {
       setPlaybackIntentOnDeviceSwitch(null);
     }
   };
+
+  useEffect(() => {
+    openDeviceSwitcherRef.current = handleOpenDeviceSwitcher;
+  });
 
   const deviceSwitcherContextValue = {
     openDeviceSwitcher: handleOpenDeviceSwitcher,
@@ -998,6 +999,12 @@ function App() {
     setActiveSection("recents");
   };
 
+  const handleCloseSearch = useCallback(() => {
+    setViewingContent(null);
+    setActiveSection(contentSourceSection || "recents");
+    setContentSourceSection(null);
+  }, [contentSourceSection]);
+
   const handleCloseContent = () => {
     const source = contentSourceSection;
     setViewingContent(null);
@@ -1012,6 +1019,57 @@ function App() {
     setViewingContent(null);
     setActiveSection("nowPlaying");
   };
+
+  /**
+   * Play the best hit from a search, walking buckets in priority order so
+   * "play artist bob dylan" starts the artist rather than a same-named track.
+   * Returns false when nothing was playable, or when playTrack deferred to the
+   * device switcher - in both cases the caller decides what to show instead.
+   */
+  const playTopMatch = useCallback(
+    async (results, priority) => {
+      const target = {
+        artist: () =>
+          results.artists?.[0] && {
+            contextUri: `spotify:artist:${results.artists[0].id}`,
+          },
+        album: () =>
+          results.albums?.[0] && {
+            contextUri: `spotify:album:${results.albums[0].id}`,
+          },
+        playlist: () =>
+          results.playlists?.[0] && {
+            contextUri: `spotify:playlist:${results.playlists[0].id}`,
+          },
+        track: () => results.tracks?.[0] && { trackUri: results.tracks[0].uri },
+      };
+
+      for (const type of priority || []) {
+        const hit = target[type]?.();
+        if (!hit) continue;
+
+        console.log("[voice] playing top", type, "match");
+        try {
+          const ok = await playerControls.playTrack(
+            hit.trackUri || null,
+            hit.contextUri || null,
+          );
+          if (ok === false) return true; // device switcher took over
+          setTimeout(() => refreshPlaybackState(), 500);
+          return true;
+        } catch (err) {
+          console.warn("[voice] playback failed for", type, err?.message);
+          return false;
+        }
+      }
+      return false;
+    },
+    [playerControls, refreshPlaybackState],
+  );
+
+  const handleListeningClose = useCallback(() => {
+    setListeningOverlayVisible(false);
+  }, []);
 
   const handleVoiceCommand = useCallback(
     async (intent) => {
@@ -1031,10 +1089,14 @@ function App() {
           setTimeout(() => refreshPlaybackState(), 500);
           break;
         case "volume_up":
-          await playerControls.setVolume(Math.min(100, playerControls.volume + 15));
+          await playerControls.setVolume(
+            Math.min(100, playerControls.volume + 15),
+          );
           break;
         case "volume_down":
-          await playerControls.setVolume(Math.max(0, playerControls.volume - 15));
+          await playerControls.setVolume(
+            Math.max(0, playerControls.volume - 15),
+          );
           break;
         case "volume_set":
           if (typeof intent.args?.level === "number") {
@@ -1042,18 +1104,31 @@ function App() {
           }
           break;
         default: {
-          const query = intent.args?.query || "";
-          if (query) {
-            setContentSourceSection(activeSection);
-            setViewingContent(null);
-            setActiveSection("search");
-            searchSpotify(query);
-          }
+          const { query = "", spotifyQuery, types } = intent.args || {};
+          if (!query) break;
+
+          setContentSourceSection(activeSection);
+          setViewingContent(null);
+
+          const results = await searchSpotify(query, { spotifyQuery, types });
+          const order = results?.priority || types;
+
+          // Try to act on the command directly; only fall back to showing the
+          // search screen if there is nothing to play or playback refused.
+          if (results && (await playTopMatch(results, order))) break;
+
+          setActiveSection("search");
           break;
         }
       }
     },
-    [playerControls, activeSection, searchSpotify, refreshPlaybackState],
+    [
+      playerControls,
+      activeSection,
+      searchSpotify,
+      refreshPlaybackState,
+      playTopMatch,
+    ],
   );
 
   const handleNavigateToArtist = (id, type) => {
@@ -1163,6 +1238,7 @@ function App() {
         loading={searchLoading}
         error={searchError}
         onOpenContent={(arg) => handleOpenContent(arg.id, arg.type)}
+        onClose={handleCloseSearch}
       />
     );
   } else if (viewingContent) {
@@ -1176,6 +1252,7 @@ function App() {
         currentlyPlayingTrackUri={currentPlayback?.item?.uri}
         currentPlayback={currentPlayback}
         radioMixes={radioMixes}
+        savedEpisodes={savedEpisodes}
         updateGradientColors={updateGradientColors}
         setIgnoreNextRelease={setIgnoreNextRelease}
         playbackProgress={playbackProgress}
@@ -1194,6 +1271,7 @@ function App() {
         likedSongs={likedSongs}
         radioMixes={radioMixes}
         userShows={userShows}
+        savedEpisodes={savedEpisodes}
         currentPlayback={currentPlayback}
         currentlyPlayingAlbum={currentlyPlayingAlbum}
         playbackProgress={playbackProgress}
@@ -1281,10 +1359,9 @@ function App() {
                         !isUpdateScreenVisible &&
                         !showConnectionLostScreen &&
                         !showTetheringScreen && (
-
                           <ListeningOverlay
                             show={listeningOverlayVisible}
-                            onClose={() => setListeningOverlayVisible(false)}
+                            onClose={handleListeningClose}
                             onCommand={handleVoiceCommand}
                           />
                         )}

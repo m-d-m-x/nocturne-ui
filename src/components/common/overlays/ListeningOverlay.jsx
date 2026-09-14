@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNocturned } from "../../../hooks/useNocturned";
 import { useSettings } from "../../../contexts/SettingsContext";
 import { classifyIntent, intentLabel } from "../../../utils/voiceIntent";
@@ -7,19 +7,52 @@ function friendlyError(raw) {
   const s = (raw || "").toLowerCase();
   if (s.includes("429") || s.includes("rate_limit") || s.includes("rate limit"))
     return "Rate limit — try again";
-  if (s.includes("401") || s.includes("invalid_api_key") || s.includes("authentication"))
+  if (
+    s.includes("401") ||
+    s.includes("invalid_api_key") ||
+    s.includes("authentication")
+  )
     return "Invalid API key";
-  if (s.includes("empty transcription") || s.includes("no audio"))
+  if (
+    s.includes("empty transcription") ||
+    s.includes("no audio") ||
+    s.includes("no speech")
+  )
     return "No speech detected";
   return "Voice command failed";
+}
+
+/** Voice pipeline tracing - grep the device console for "[voice]". */
+function vlog(...args) {
+  console.log("[voice]", ...args);
+}
+
+/** Capture levels, so a silent-looking recording can be diagnosed from the log. */
+function levels(p) {
+  if (p.peakRms === undefined) return "";
+  return `peak=${Math.round(p.peakRms)} floor=${Math.round(
+    p.floorRms ?? 0,
+  )} threshold=${Math.round(p.threshold ?? 0)} windows=${p.windows ?? 0}`;
 }
 
 const PHASE_IDLE = "idle";
 const PHASE_LISTENING = "listening";
 const PHASE_PROCESSING = "processing";
-const PHASE_COMMANDING = "commanding";
 const PHASE_CONFIRMED = "confirmed";
 const PHASE_ERROR = "error";
+
+// Nothing here should be able to strand the overlay on screen. nocturned caps
+// capture at 30s (arecord -d) and gives transcription a 30s client timeout, so
+// these are backstops a healthy run never reaches.
+const PHASE_TIMEOUTS = {
+  [PHASE_IDLE]: 10000,
+  [PHASE_LISTENING]: 35000,
+  [PHASE_PROCESSING]: 40000,
+};
+
+const CLOSE_DELAY_ERROR = 2500;
+const CLOSE_DELAY_SEARCH = 600;
+const CLOSE_DELAY_COMMAND = 1200;
 
 function ListeningOverlay({ show, onClose, onCommand }) {
   const { settings } = useSettings();
@@ -30,46 +63,93 @@ function ListeningOverlay({ show, onClose, onCommand }) {
   const [phase, setPhase] = useState(PHASE_IDLE);
   const [errMsg, setErrMsg] = useState("");
   const [confirmedLabel, setConfirmedLabel] = useState("");
+
   const sessionActiveRef = useRef(false);
-  const listenerIdRef = useRef(null);
+  const startedForShowRef = useRef(false);
   const mountedRef = useRef(true);
+  const closeTimerRef = useRef(null);
+
+  // Effects below must not re-run when the parent re-renders (App re-renders on
+  // every playback poll, and this overlay is now on screen for many seconds),
+  // so latest-value props and settings are read through refs instead of deps.
+  const onCloseRef = useRef(onClose);
+  const onCommandRef = useRef(onCommand);
+  const settingsRef = useRef(settings);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    onCommandRef.current = onCommand;
+    settingsRef.current = settings;
+  });
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     };
   }, []);
+
+  const releaseBody = useCallback(() => {
+    document.body.classList.remove("stop-scrolling");
+    document.body.style.overflow = "";
+    document.body.style.touchAction = "";
+  }, []);
+
+  /** Settle into a terminal phase, then hand control back to the parent. */
+  const finish = useCallback(
+    (delay) => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = setTimeout(() => {
+        if (!mountedRef.current) return;
+        releaseBody();
+        onCloseRef.current?.();
+      }, delay);
+    },
+    [releaseBody],
+  );
+
+  const fail = useCallback(
+    (message, delay = CLOSE_DELAY_ERROR) => {
+      if (!mountedRef.current) return;
+      sessionActiveRef.current = false;
+      setErrMsg(message);
+      setPhase(PHASE_ERROR);
+      finish(delay);
+    },
+    [finish],
+  );
+
+  const cancelSession = useCallback(() => {
+    if (!sessionActiveRef.current) return;
+    sessionActiveRef.current = false;
+    vlog("cancelling capture");
+    apiRequest("/audio/transcribe/cancel", "POST").catch(() => {});
+  }, [apiRequest]);
 
   useEffect(() => {
     let unmountTimer;
     if (show) {
       setMounted(true);
       document.body.classList.add("stop-scrolling");
-    } else if (mounted && (phase === PHASE_IDLE || phase === PHASE_LISTENING || phase === PHASE_ERROR)) {
+    } else if (mounted) {
       unmountTimer = setTimeout(() => setMounted(false), 300);
-      setTimeout(() => document.body.classList.remove("stop-scrolling"), 300);
+      setTimeout(releaseBody, 300);
     }
     return () => {
       if (unmountTimer) clearTimeout(unmountTimer);
     };
-  }, [show, mounted, phase]);
+  }, [show, mounted, releaseBody]);
 
   useEffect(() => {
     if (!mounted) return;
 
     const handleKey = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        if (sessionActiveRef.current) {
-          apiRequest("/audio/transcribe/cancel", "POST").catch(() => {});
-          sessionActiveRef.current = false;
-        }
-        onClose?.();
-      } else {
-        e.preventDefault();
-        e.stopPropagation();
+        cancelSession();
+        releaseBody();
+        onCloseRef.current?.();
       }
     };
 
@@ -80,133 +160,147 @@ function ListeningOverlay({ show, onClose, onCommand }) {
     };
 
     window.addEventListener("keydown", handleKey, true);
-    window.addEventListener("wheel", preventDismiss, { passive: false, capture: true });
-    window.addEventListener("touchmove", preventDismiss, { passive: false, capture: true });
-    window.addEventListener("touchstart", preventDismiss, { passive: false, capture: true });
-    window.addEventListener("touchend", preventDismiss, { passive: false, capture: true });
+    window.addEventListener("wheel", preventDismiss, {
+      passive: false,
+      capture: true,
+    });
+    window.addEventListener("touchmove", preventDismiss, {
+      passive: false,
+      capture: true,
+    });
+    window.addEventListener("touchstart", preventDismiss, {
+      passive: false,
+      capture: true,
+    });
+    window.addEventListener("touchend", preventDismiss, {
+      passive: false,
+      capture: true,
+    });
 
     return () => {
       window.removeEventListener("keydown", handleKey, true);
       window.removeEventListener("wheel", preventDismiss, { capture: true });
-      window.removeEventListener("touchmove", preventDismiss, { capture: true });
-      window.removeEventListener("touchstart", preventDismiss, { capture: true });
+      window.removeEventListener("touchmove", preventDismiss, {
+        capture: true,
+      });
+      window.removeEventListener("touchstart", preventDismiss, {
+        capture: true,
+      });
       window.removeEventListener("touchend", preventDismiss, { capture: true });
     };
-  }, [mounted, onClose, apiRequest]);
+  }, [mounted, cancelSession, releaseBody]);
 
   useEffect(() => {
     if (mounted) {
       document.body.style.overflow = "hidden";
       document.body.style.touchAction = "none";
     } else {
-      document.body.style.overflow = "";
-      document.body.style.touchAction = "";
+      releaseBody();
     }
-    return () => {
-      document.body.style.overflow = "";
-      document.body.style.touchAction = "";
-    };
-  }, [mounted]);
+  }, [mounted, releaseBody]);
 
-  useEffect(() => {
-    const id = addMessageListener("voice-transcript", (data) => {
-      if (data?.type !== "voice_transcript") return;
-      sessionActiveRef.current = false;
-      const text = data.payload?.text;
-      const error = data.payload?.error;
-
-      if (error) {
-        if (!mountedRef.current) return;
-        setErrMsg(friendlyError(error));
-        setPhase(PHASE_ERROR);
-        setTimeout(() => {
-          if (mountedRef.current) {
-            document.body.classList.remove("stop-scrolling");
-            document.body.style.overflow = "";
-            document.body.style.touchAction = "";
-            setMounted(false);
-            onClose?.();
-          }
-        }, 3000);
+  const runIntent = useCallback(
+    (text) => {
+      let intent;
+      try {
+        intent = classifyIntent(text);
+      } catch (err) {
+        vlog("intent classification threw", err);
+        fail("Couldn't understand — try again");
         return;
       }
 
-      if (text) {
-        if (!mountedRef.current) return;
-        setPhase(PHASE_COMMANDING);
+      vlog("intent", intent.type, intent.args, `-> "${intentLabel(intent)}"`);
+      setConfirmedLabel(intentLabel(intent));
+      setPhase(PHASE_CONFIRMED);
+      onCommandRef.current?.(intent);
+      finish(
+        intent.type === "search" ? CLOSE_DELAY_SEARCH : CLOSE_DELAY_COMMAND,
+      );
+    },
+    [finish, fail],
+  );
 
-        const provider = settings.voiceSttProvider || "groq";
-        const apiKey = (settings.voiceSttApiKey || "").trim();
+  // Capture lifecycle is owned by nocturned: it auto-stops after ~2s of silence
+  // and tells us via voice_state, then delivers voice_transcript.
+  useEffect(() => {
+    const id = addMessageListener("voice-events", (data) => {
+      if (!mountedRef.current) return;
 
-        classifyIntent(text, provider, apiKey)
-          .then((intent) => {
-            if (!mountedRef.current) return;
-            const label = intentLabel(intent);
-            setConfirmedLabel(label);
-            setPhase(PHASE_CONFIRMED);
-            onCommand?.(intent);
-            const delay = intent.type === "search" ? 600 : 1200;
-            setTimeout(() => {
-              if (mountedRef.current) {
-                document.body.classList.remove("stop-scrolling");
-                document.body.style.overflow = "";
-                document.body.style.touchAction = "";
-                setMounted(false);
-                onClose?.();
-              }
-            }, delay);
-          })
-          .catch((err) => {
-            if (!mountedRef.current) return;
-            const msg =
-              err?.message?.includes("429") ||
-              err?.message?.includes("rate_limit")
-                ? "Rate limit — try again"
-                : "Couldn't understand — try again";
-            setErrMsg(msg);
-            setPhase(PHASE_ERROR);
-            setTimeout(() => {
-              if (mountedRef.current) {
-                document.body.classList.remove("stop-scrolling");
-                document.body.style.overflow = "";
-                document.body.style.touchAction = "";
-                setMounted(false);
-                onClose?.();
-              }
-            }, 2500);
-          });
+      if (data?.type === "voice_state") {
+        const p = data.payload || {};
+        if (p.state === "recording") {
+          vlog("recording started");
+          setPhase(PHASE_LISTENING);
+        } else if (p.state === "transcribing") {
+          vlog(
+            `recording stopped (${p.reason || "?"})`,
+            `${p.durationMs ?? "?"}ms`,
+            `${p.bytes ?? "?"} bytes`,
+            levels(p),
+          );
+          setPhase(PHASE_PROCESSING);
+        } else if (p.state === "discarded") {
+          vlog(
+            `recording discarded (${p.reason || "?"})`,
+            `${p.durationMs ?? "?"}ms`,
+            levels(p),
+            "- nothing above the speech threshold",
+          );
+        } else if (p.state === "cancelled") {
+          vlog("capture cancelled");
+        }
+        return;
+      }
+
+      if (data?.type !== "voice_transcript") return;
+
+      sessionActiveRef.current = false;
+      const { text, error, provider, elapsedMs } = data.payload || {};
+
+      if (error) {
+        vlog("transcript error:", error);
+        fail(friendlyError(error), 3000);
+      } else if (text) {
+        vlog(
+          `transcript via ${provider || "?"} in ${elapsedMs ?? "?"}ms:`,
+          JSON.stringify(text),
+        );
+        runIntent(text);
       } else {
-        if (!mountedRef.current) return;
-        setErrMsg("No speech detected");
-        setPhase(PHASE_ERROR);
-        setTimeout(() => {
-          if (mountedRef.current) onClose?.();
-        }, 2500);
+        vlog("transcript was empty");
+        fail("No speech detected");
       }
     });
-    listenerIdRef.current = id;
 
-    return () => {
-      if (listenerIdRef.current) removeMessageListener(listenerIdRef.current);
-    };
-  }, [addMessageListener, removeMessageListener, onClose, onCommand, settings.voiceSttProvider, settings.voiceSttApiKey]);
+    return () => removeMessageListener(id);
+  }, [addMessageListener, removeMessageListener, runIntent, fail]);
 
+  // Start exactly once per show-edge.
   useEffect(() => {
-    let cancelled = false;
+    if (!show) {
+      startedForShowRef.current = false;
+      return;
+    }
+    if (startedForShowRef.current) return;
+    startedForShowRef.current = true;
 
-    const startCapture = async () => {
-      const apiKey = (settings.voiceSttApiKey || "").trim();
+    let cancelled = false;
+    setPhase(PHASE_IDLE);
+    setErrMsg("");
+    setConfirmedLabel("");
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+
+    (async () => {
+      const apiKey = (settingsRef.current.voiceSttApiKey || "").trim();
       if (!apiKey) {
-        if (cancelled) return;
-        setErrMsg("No API key configured. Open Settings → Voice Search.");
-        setPhase(PHASE_ERROR);
-        setTimeout(() => onClose?.(), 3500);
+        fail("No API key configured. Open Settings → Voice Search.", 3500);
         return;
       }
 
       try {
         await apiRequest("/audio/transcribe/start", "POST", {
-          provider: settings.voiceSttProvider || "groq",
+          provider: settingsRef.current.voiceSttProvider || "groq",
           apiKey,
           lang: "en",
         });
@@ -215,51 +309,52 @@ function ListeningOverlay({ show, onClose, onCommand }) {
           return;
         }
         sessionActiveRef.current = true;
+        vlog("capture start acknowledged by nocturned");
         setPhase(PHASE_LISTENING);
-        setErrMsg("");
       } catch (err) {
         if (cancelled) return;
-        setErrMsg(err?.message || "Failed to start capture");
-        setPhase(PHASE_ERROR);
-        setTimeout(() => onClose?.(), 3000);
+        fail(err?.message || "Failed to start capture", 3000);
       }
-    };
-
-    const stopCapture = async () => {
-      if (!sessionActiveRef.current) return;
-      try {
-        setPhase(PHASE_PROCESSING);
-        await apiRequest("/audio/transcribe/stop", "POST");
-      } catch (err) {
-        sessionActiveRef.current = false;
-        setErrMsg(err?.message || "Failed to stop capture");
-        setPhase(PHASE_ERROR);
-        setTimeout(() => onClose?.(), 3000);
-      }
-    };
-
-    if (show) {
-      setPhase(PHASE_IDLE);
-      setErrMsg("");
-      startCapture();
-    } else if (sessionActiveRef.current) {
-      stopCapture();
-    }
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [show, apiRequest, settings.voiceSttApiKey, settings.voiceSttProvider, onClose]);
+  }, [show, apiRequest, fail]);
+
+  // Watchdog: never leave the overlay stuck in a non-terminal phase.
+  useEffect(() => {
+    const budget = PHASE_TIMEOUTS[phase];
+    if (!mounted || !budget) return;
+
+    const timer = setTimeout(() => {
+      vlog(`watchdog fired in phase "${phase}" after ${budget}ms`);
+      cancelSession();
+      fail(
+        phase === PHASE_LISTENING
+          ? "No speech detected"
+          : "Voice command timed out",
+      );
+    }, budget);
+
+    return () => clearTimeout(timer);
+  }, [phase, mounted, cancelSession, fail]);
 
   if (!mounted) return null;
 
   let label = "";
   let showLoader = false;
-  if (phase === PHASE_LISTENING) { label = "Listening"; showLoader = true; }
-  else if (phase === PHASE_PROCESSING) { label = "Transcribing…"; showLoader = true; }
-  else if (phase === PHASE_COMMANDING) { label = "Thinking…"; showLoader = true; }
-  else if (phase === PHASE_CONFIRMED) { label = confirmedLabel; showLoader = false; }
-  else if (phase === PHASE_ERROR) { label = errMsg; showLoader = false; }
+  if (phase === PHASE_LISTENING) {
+    label = "Listening";
+    showLoader = true;
+  } else if (phase === PHASE_PROCESSING) {
+    label = "Transcribing…";
+    showLoader = true;
+  } else if (phase === PHASE_CONFIRMED) {
+    label = confirmedLabel;
+  } else if (phase === PHASE_ERROR) {
+    label = errMsg;
+  }
 
   return (
     <div

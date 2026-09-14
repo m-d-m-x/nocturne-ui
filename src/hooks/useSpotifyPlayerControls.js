@@ -1,12 +1,27 @@
 import { useCallback, useState, useContext, useRef, useEffect } from "react";
 import React from "react";
 import { generateRandomString } from "../utils/helpers";
+import {
+  isTrackLiked,
+  markTrackLiked,
+  markTrackUnliked,
+} from "../utils/likedTracks";
 
 export const DeviceSwitcherContext = React.createContext({
-  openDeviceSwitcher: (playbackIntent = null) => {},
+  openDeviceSwitcher: null,
 });
 
-export function useSpotifyPlayerControls(accessToken) {
+/**
+ * `deviceSwitcherRef` exists because App calls this hook above its own
+ * DeviceSwitcherContext.Provider, so context there resolves to the default and
+ * every App-level playback call (voice commands included) silently lost the
+ * device switcher. The ref lets that caller inject the real handler without
+ * restructuring the component tree.
+ */
+export function useSpotifyPlayerControls(
+  accessToken,
+  deviceSwitcherRef = null,
+) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [volume, setVolumeState] = useState(50);
@@ -15,7 +30,11 @@ export function useSpotifyPlayerControls(accessToken) {
   const volumeQueueRef = useRef([]);
   const isVolumeProcessingRef = useRef(false);
   const lastVolumeUpdateTimeRef = useRef(0);
-  const { openDeviceSwitcher } = useContext(DeviceSwitcherContext);
+  const { openDeviceSwitcher: contextDeviceSwitcher } = useContext(
+    DeviceSwitcherContext,
+  );
+  const openDeviceSwitcher =
+    deviceSwitcherRef?.current || contextDeviceSwitcher;
 
   useEffect(() => {
     return () => {
@@ -369,37 +388,14 @@ export function useSpotifyPlayerControls(accessToken) {
       if (!accessToken || !trackId) return false;
 
       try {
-        setIsLoading(true);
         setError(null);
-
-        const response = await fetch(
-          `https://api.spotify.com/v1/me/tracks/contains?ids=${trackId}`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          },
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({
-            error: { message: `HTTP error! status: ${response.status}` },
-          }));
-          throw new Error(
-            errorData.error?.message ||
-              `HTTP error! status: ${response.status}`,
-          );
-        }
-
-        const data = await response.json();
-        return data[0] || false;
+        // /me/tracks/contains is 403 without extended quota; membership comes
+        // from the locally cached saved-track ids instead.
+        return await isTrackLiked(accessToken, trackId);
       } catch (err) {
         console.error("Error checking if track is liked:", err);
         setError(err.message);
         return false;
-      } finally {
-        setIsLoading(false);
       }
     },
     [accessToken],
@@ -435,6 +431,7 @@ export function useSpotifyPlayerControls(accessToken) {
           );
         }
 
+        markTrackLiked(trackId);
         return true;
       } catch (err) {
         console.error("Error liking track:", err);
@@ -477,6 +474,7 @@ export function useSpotifyPlayerControls(accessToken) {
           );
         }
 
+        markTrackUnliked(trackId);
         return true;
       } catch (err) {
         console.error("Error unliking track:", err);
