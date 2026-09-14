@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BrowserRouter as Router } from "react-router-dom";
 import FontLoader from "./components/common/FontLoader";
 import AuthContainer from "./components/auth/AuthContainer";
@@ -258,19 +258,35 @@ function useGlobalButtonMapping({
     ],
   );
 
+  // These listeners must stay registered across re-renders. They used to be
+  // torn down whenever handleButtonPress changed identity or isDisabled
+  // flipped, and because the long-press timer lived inside the effect, the
+  // teardown cancelled any hold in progress. App re-renders roughly once a
+  // second while playback progresses, so a dial hold on Now Playing had a good
+  // chance of being cancelled before it reached 675ms. The effect now depends
+  // only on things that genuinely change who may use the dial; everything else
+  // is read through refs at dispatch time.
+  const isDisabledRef = useRef(isDisabled);
+  const handleButtonPressRef = useRef(handleButtonPress);
+  useEffect(() => {
+    isDisabledRef.current = isDisabled;
+    handleButtonPressRef.current = handleButtonPress;
+  });
+
+  const extraLongPressTimerRef = useRef(null);
+  const extraLongPressFiredRef = useRef(false);
+
   useEffect(() => {
     if (!isAuthenticated || isTutorialActive) return;
-
-    if (isDisabled) return;
 
     // In dev, use V so Enter works normally in the browser during testing.
     // In production (on-device) Enter = dial press.
     const VOICE_KEY = import.meta.env.DEV ? "v" : "Enter";
 
-    const extraLongPressTimerRef = { current: null };
-    const extraLongPressFiredRef = { current: false };
-
     const handleKeyDown = (e) => {
+      // Power menu / update screen / an in-flight voice session own the dial.
+      if (isDisabledRef.current) return;
+
       if (e.key === VOICE_KEY) {
         if (e.__nocturneSynthetic) return;
         if (e.repeat) return;
@@ -296,6 +312,8 @@ function useGlobalButtonMapping({
     };
 
     const handleKeyUp = (e) => {
+      if (isDisabledRef.current) return;
+
       if (e.key === VOICE_KEY) {
         if (e.__nocturneSynthetic) return;
 
@@ -342,7 +360,7 @@ function useGlobalButtonMapping({
         return;
       }
 
-      handleButtonPress(buttonNumber);
+      handleButtonPressRef.current?.(buttonNumber);
       e.stopImmediatePropagation();
       e.preventDefault();
     };
@@ -358,7 +376,7 @@ function useGlobalButtonMapping({
         extraLongPressTimerRef.current = null;
       }
     };
-  }, [isAuthenticated, handleButtonPress, isTutorialActive, isDisabled]);
+  }, [isAuthenticated, isTutorialActive]);
 
   const setIgnoreNextRelease = useCallback(() => {
     ignoreNextReleaseRef.current = true;
@@ -655,30 +673,30 @@ function App() {
     setListeningOverlayVisible,
   });
 
-  const handleOpenDeviceSwitcher = (
-    playbackIntentOrDevices = null,
-    devicesArg = null,
-  ) => {
-    let playbackIntent = null;
-    let devicesList = null;
+  const handleOpenDeviceSwitcher = useCallback(
+    (playbackIntentOrDevices = null, devicesArg = null) => {
+      let playbackIntent = null;
+      let devicesList = null;
 
-    if (Array.isArray(playbackIntentOrDevices)) {
-      devicesList = playbackIntentOrDevices;
-    } else {
-      playbackIntent = playbackIntentOrDevices;
-      devicesList = devicesArg;
-    }
+      if (Array.isArray(playbackIntentOrDevices)) {
+        devicesList = playbackIntentOrDevices;
+      } else {
+        playbackIntent = playbackIntentOrDevices;
+        devicesList = devicesArg;
+      }
 
-    if (playbackIntent) {
-      setPlaybackIntentOnDeviceSwitch(playbackIntent);
-    }
+      if (playbackIntent) {
+        setPlaybackIntentOnDeviceSwitch(playbackIntent);
+      }
 
-    if (devicesList && devicesList.length > 0) {
-      setPrefetchedDevices(devicesList);
-    }
+      if (devicesList && devicesList.length > 0) {
+        setPrefetchedDevices(devicesList);
+      }
 
-    setIsDeviceSwitcherOpen(true);
-  };
+      setIsDeviceSwitcherOpen(true);
+    },
+    [],
+  );
 
   const handleCloseDeviceSwitcher = (selectedDeviceId = null) => {
     setIsDeviceSwitcherOpen(false);
@@ -728,9 +746,13 @@ function App() {
     openDeviceSwitcherRef.current = handleOpenDeviceSwitcher;
   });
 
-  const deviceSwitcherContextValue = {
-    openDeviceSwitcher: handleOpenDeviceSwitcher,
-  };
+  // A fresh object here hands every consumer inside the provider a new
+  // openDeviceSwitcher on each render, which cascades into new playTrack and
+  // handleButtonPress callbacks app-wide.
+  const deviceSwitcherContextValue = useMemo(
+    () => ({ openDeviceSwitcher: handleOpenDeviceSwitcher }),
+    [handleOpenDeviceSwitcher],
+  );
 
   const handleNetworkClose = () => {
     setSelectedNetwork(null);
