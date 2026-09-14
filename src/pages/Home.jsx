@@ -4,6 +4,7 @@ import HorizontalScroll from "../components/common/navigation/HorizontalScroll";
 import Settings from "../components/settings/Settings";
 
 import { useNavigation } from "../hooks/useNavigation";
+import { getPlaylistTrackCount } from "../utils/spotifyPlaylist";
 import { useSpotifyPlayerControls } from "../hooks/useSpotifyPlayerControls";
 import DonationQRModal from "../components/common/modals/DonationQRModal";
 
@@ -17,6 +18,7 @@ export default function Home({
   topArtists,
   radioMixes,
   userShows,
+  savedEpisodes = [],
   currentPlayback,
   currentlyPlayingAlbum,
   isLoading,
@@ -64,11 +66,16 @@ export default function Home({
       const firstArtistImage =
         topArtists[0]?.images?.[1]?.url || topArtists[0]?.images?.[0]?.url;
       updateGradientColors(firstArtistImage || null, "artists");
-    } else if (activeSection === "podcasts" && userShows.length > 0) {
-      const firstShowImage =
-        userShows[0]?.show?.images?.[1]?.url ||
-        userShows[0]?.show?.images?.[0]?.url;
-      updateGradientColors(firstShowImage || null, "podcasts");
+    } else if (
+      activeSection === "podcasts" &&
+      (userShows.length > 0 || savedEpisodes.length > 0)
+    ) {
+      const first =
+        userShows[0]?.show?.images || savedEpisodes[0]?.episode?.images;
+      updateGradientColors(
+        first?.[1]?.url || first?.[0]?.url || null,
+        "podcasts",
+      );
     } else if (activeSection === "settings") {
       updateGradientColors(null, "settings");
     }
@@ -80,6 +87,7 @@ export default function Home({
     topArtists,
     radioMixes,
     userShows,
+    savedEpisodes,
     currentlyPlayingAlbum,
   ]);
 
@@ -173,6 +181,46 @@ export default function Home({
     );
   };
 
+  // A library of saved *episodes* is not the same thing as followed *shows* -
+  // /me/shows can be empty while /me/episodes is full. Both belong here, and
+  // saved episodes collapse into one card per show rather than one per episode.
+  const followedShowIds = new Set(
+    userShows.map((item) => item?.show?.id).filter(Boolean),
+  );
+
+  const episodeGroups = [];
+  const groupsById = new Map();
+  savedEpisodes.forEach((item) => {
+    const episode = item?.episode;
+    const show = episode?.show;
+    // A followed show already has its own card; don't list it twice.
+    if (!episode || !show?.id || followedShowIds.has(show.id)) return;
+
+    let group = groupsById.get(show.id);
+    if (!group) {
+      group = { kind: "episodeGroup", id: show.id, data: show, count: 0 };
+      groupsById.set(show.id, group);
+      episodeGroups.push(group);
+    }
+    group.count += 1;
+  });
+
+  const podcastItems = [
+    ...userShows
+      .map((item) => item?.show)
+      .filter(Boolean)
+      .map((show) => ({ kind: "show", id: show.id, data: show, count: 0 })),
+    ...episodeGroups,
+  ];
+
+  const openPodcastItem = (entry) => {
+    if (!entry) return;
+    onOpenContent(
+      entry.data.id,
+      entry.kind === "show" ? "show" : "saved-episodes",
+    );
+  };
+
   const handleRecentsItemSelect = (index, item) => {
     if (index !== -1 && recentAlbums[index]) {
       const album = recentAlbums[index];
@@ -187,9 +235,13 @@ export default function Home({
     }
 
     const adjustedIndex = index - 1;
+    // Must match the filter used in renderLibrarySection, or the index the
+    // scroller reports maps to the wrong playlist.
     const playlists = userPlaylists.filter(
       (item) =>
-        item?.type === "playlist" && item.id !== "37i9dQZF1EYkqdzj48dyYq",
+        item?.type === "playlist" &&
+        item.id !== "37i9dQZF1EYkqdzj48dyYq" &&
+        getPlaylistTrackCount(item) > 0,
     );
 
     if (adjustedIndex >= 0 && adjustedIndex < playlists.length) {
@@ -217,10 +269,9 @@ export default function Home({
     }
   };
 
-  const handlePodcastsItemSelect = (index, item) => {
-    if (index !== -1 && userShows[index]) {
-      const show = userShows[index].show;
-      onOpenContent(show.id, "show");
+  const handlePodcastsItemSelect = (index) => {
+    if (index !== -1 && podcastItems[index]) {
+      openPodcastItem(podcastItems[index]);
     }
   };
 
@@ -308,20 +359,20 @@ export default function Home({
 
                 {album.type === "show"
                   ? album.publisher && (
-                    <h4 className="text-[length:calc(var(--text-scale)*32px)] font-[560] text-white/60 truncate tracking-tight max-w-[280px]">
-                      {album.publisher}
-                    </h4>
-                  )
+                      <h4 className="text-[length:calc(var(--text-scale)*32px)] font-[560] text-white/60 truncate tracking-tight max-w-[280px]">
+                        {album.publisher}
+                      </h4>
+                    )
                   : album.artists?.[0] && (
-                    <h4
-                      className="text-[length:calc(var(--text-scale)*32px)] font-[560] text-white/60 truncate tracking-tight max-w-[280px]"
-                      onClick={() =>
-                        onOpenContent(album.artists[0].id, "artist")
-                      }
-                    >
-                      {album.artists.map((artist) => artist.name).join(", ")}
-                    </h4>
-                  )}
+                      <h4
+                        className="text-[length:calc(var(--text-scale)*32px)] font-[560] text-white/60 truncate tracking-tight max-w-[280px]"
+                        onClick={() =>
+                          onOpenContent(album.artists[0].id, "artist")
+                        }
+                      >
+                        {album.artists.map((artist) => artist.name).join(", ")}
+                      </h4>
+                    )}
               </div>
             ))
           ) : (
@@ -410,7 +461,7 @@ export default function Home({
                 (item) =>
                   item?.type === "playlist" &&
                   item.id !== "37i9dQZF1EYkqdzj48dyYq" &&
-                  item.tracks?.total > 0,
+                  getPlaylistTrackCount(item) > 0,
               )
               .map((playlist) => (
                 <div
@@ -449,7 +500,9 @@ export default function Home({
                         Now Playing
                       </>
                     ) : (
-                      `${(playlist.tracks?.total || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")} Songs`
+                      `${getPlaylistTrackCount(playlist)
+                        .toString()
+                        .replace(/\B(?=(\d{3})+(?!\d))/g, ",")} Songs`
                     )}
                   </h4>
                 </div>
@@ -463,16 +516,6 @@ export default function Home({
         </div>
       </HorizontalScroll>
     );
-  };
-
-  const formatFollowerCount = (count) => {
-    if (count >= 1000000) {
-      const millions = count / 1000000;
-      return millions % 1 === 0
-        ? `${Math.floor(millions)}M`
-        : `${millions.toFixed(1)}M`;
-    }
-    return count.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
 
   const renderArtistsSection = () => {
@@ -545,9 +588,7 @@ export default function Home({
                       </div>
                       Now Playing
                     </>
-                  ) : (
-                    `${formatFollowerCount(artist.followers?.total ?? 0)} Followers`
-                  )}
+                  ) : null}
                 </h4>
               </div>
             ))
@@ -708,7 +749,7 @@ export default function Home({
           className="flex overflow-x-auto scroll-container p-2 snap-x snap-mandatory"
           style={{ willChange: "transform" }}
         >
-          {isLoading.userShows ? (
+          {isLoading.userShows || isLoading.savedEpisodes ? (
             Array(5)
               .fill()
               .map((_, index) => (
@@ -724,24 +765,29 @@ export default function Home({
                   <div className="mt-2 h-8 w-40 bg-white/10 rounded animate-pulse"></div>
                 </div>
               ))
-          ) : userShows.length > 0 ? (
-            userShows.map((item, i) => {
-              const show = item.show;
+          ) : podcastItems.length > 0 ? (
+            podcastItems.map((entry, i) => {
+              const item = entry.data;
+              const image = item.images?.[1]?.url || item.images?.[0]?.url;
+              const subtitle =
+                entry.kind === "show"
+                  ? item.publisher
+                  : `${entry.count} saved episode${entry.count === 1 ? "" : "s"}`;
               return (
                 <div
-                  key={`${show.id}-${i}`}
+                  key={`${entry.kind}-${entry.id}-${i}`}
                   className="min-w-[280px] pl-2 mr-10 snap-start"
-                  data-id={show.id}
+                  data-id={entry.id}
                 >
                   <div
                     className="mt-10 aspect-square rounded-[12px] drop-shadow-[0_8px_5px_rgba(0,0,0,0.25)]"
                     style={{ width: 280, height: 280 }}
-                    onClick={() => onOpenContent(show.id, "show")}
+                    onClick={() => openPodcastItem(entry)}
                   >
-                    {show.images?.[1]?.url || show.images?.[0]?.url ? (
+                    {image ? (
                       <img
-                        src={show.images[1]?.url || show.images[0]?.url}
-                        alt={`${show.name} Cover`}
+                        src={image}
+                        alt={`${item.name} Cover`}
                         className="w-full h-full object-cover rounded-[12px]"
                       />
                     ) : (
@@ -750,12 +796,12 @@ export default function Home({
                   </div>
                   <h4
                     className="mt-2 text-[length:calc(var(--text-scale)*36px)] font-[580] text-white truncate tracking-tight max-w-[280px]"
-                    onClick={() => onOpenContent(show.id, "show")}
+                    onClick={() => openPodcastItem(entry)}
                   >
-                    {show.name}
+                    {item.name}
                   </h4>
                   <h4 className="text-[length:calc(var(--text-scale)*32px)] font-[560] text-white/60 truncate tracking-tight max-w-[280px]">
-                    {show.publisher}
+                    {subtitle}
                   </h4>
                 </div>
               );
@@ -813,7 +859,12 @@ export default function Home({
           />
         </div>
 
-        <div className="h-screen overflow-y-auto" style={{ paddingRight: '50px' }}>{renderContent()}</div>
+        <div
+          className="h-screen overflow-y-auto"
+          style={{ paddingRight: "50px" }}
+        >
+          {renderContent()}
+        </div>
       </div>
 
       {showDonationModal && (

@@ -6,7 +6,6 @@ import {
   networkAwareRequest,
   waitForNetwork,
 } from "../utils/networkAwareRequest";
-import { getCachedTimezone } from "../components/common/navigation/StatusBar";
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 2000;
@@ -15,6 +14,7 @@ export function useSpotifyData(
   activeSection,
   skipInitialFetch = false,
   tokenReady = true,
+  deviceSwitcherRef = null,
 ) {
   const {
     isAuthenticated,
@@ -36,6 +36,7 @@ export function useSpotifyData(
   });
   const [radioMixes, setRadioMixes] = useState([]);
   const [userShows, setUserShows] = useState([]);
+  const [savedEpisodes, setSavedEpisodes] = useState([]);
   const [retryCount, setRetryCount] = useState(0);
 
   const [isLoading, setIsLoading] = useState({
@@ -45,6 +46,7 @@ export function useSpotifyData(
     likedSongs: true,
     radioMixes: true,
     userShows: true,
+    savedEpisodes: true,
   });
 
   const [errors, setErrors] = useState({
@@ -54,6 +56,7 @@ export function useSpotifyData(
     likedSongs: null,
     radioMixes: null,
     userShows: null,
+    savedEpisodes: null,
   });
 
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
@@ -88,14 +91,10 @@ export function useSpotifyData(
     refreshPlaybackState,
   } = useSpotifyPlayerState(effectiveToken, !!effectiveToken);
 
-  const playerControls = useSpotifyPlayerControls(effectiveToken);
-
-  useEffect(() => {
-    if (skipInitialFetch) return;
-    if (isAuthenticated && !authIsLoading && !initialDataLoaded) {
-      loadInitialData();
-    }
-  }, [isAuthenticated, authIsLoading, skipInitialFetch]);
+  const playerControls = useSpotifyPlayerControls(
+    effectiveToken,
+    deviceSwitcherRef,
+  );
 
   useEffect(() => {
     if (currentlyPlayingAlbum?.id) {
@@ -313,322 +312,159 @@ export function useSpotifyData(
     }
   }, [effectiveToken]);
 
+  const fetchSavedEpisodes = useCallback(async () => {
+    if (!effectiveToken) return;
+
+    try {
+      setIsLoading((prev) => ({ ...prev, savedEpisodes: true }));
+
+      const response = await networkAwareRequest(() =>
+        fetch("https://api.spotify.com/v1/me/episodes?limit=50", {
+          headers: {
+            Authorization: `Bearer ${effectiveToken}`,
+          },
+        }),
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setSavedEpisodes(data.items || []);
+      setErrors((prev) => ({ ...prev, savedEpisodes: null }));
+      return data.items || [];
+    } catch (err) {
+      console.error("Error fetching saved episodes:", err);
+      setErrors((prev) => ({ ...prev, savedEpisodes: err.message }));
+      throw err;
+    } finally {
+      setIsLoading((prev) => ({ ...prev, savedEpisodes: false }));
+    }
+  }, [effectiveToken]);
+
   const fetchRadioMixes = useCallback(async () => {
     if (!effectiveToken) return;
 
-    let spotifyMixes = [];
+    const authed = (url) =>
+      networkAwareRequest(() =>
+        fetch(url, { headers: { Authorization: `Bearer ${effectiveToken}` } }),
+      )
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null);
 
     try {
       setIsLoading((prev) => ({ ...prev, radioMixes: true }));
 
-      let userTimezone = "America/New_York";
-
-      const maxWaitTime = 5000;
-      const checkInterval = 100;
-      let waitTime = 0;
-
-      while (waitTime < maxWaitTime) {
-        const cachedTz = getCachedTimezone();
-        if (cachedTz) {
-          userTimezone = cachedTz;
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, checkInterval));
-        waitTime += checkInterval;
-      }
-
-      const [
-        topTracksMediumTerm,
-        topTracksLongTerm,
-        recentlyPlayed,
-        topArtists,
-        spotifyRadioMixesResponse,
-      ] = await Promise.all([
-        networkAwareRequest(() =>
-          fetch(
-            "https://api.spotify.com/v1/me/top/tracks?limit=50&time_range=medium_term",
-            {
-              headers: { Authorization: `Bearer ${effectiveToken}` },
-            },
-          ),
-        ).then((res) => (res.ok ? res.json() : { items: [] })),
-        networkAwareRequest(() =>
-          fetch(
-            "https://api.spotify.com/v1/me/top/tracks?limit=50&time_range=long_term",
-            {
-              headers: { Authorization: `Bearer ${effectiveToken}` },
-            },
-          ),
-        ).then((res) => (res.ok ? res.json() : { items: [] })),
-        networkAwareRequest(() =>
-          fetch(
-            "https://api.spotify.com/v1/me/player/recently-played?limit=50",
-            {
-              headers: { Authorization: `Bearer ${effectiveToken}` },
-            },
-          ),
-        ).then((res) => (res.ok ? res.json() : { items: [] })),
-        networkAwareRequest(() =>
-          fetch("https://api.spotify.com/v1/me/top/artists?limit=10", {
-            headers: { Authorization: `Bearer ${effectiveToken}` },
-          }),
-        ).then((res) => (res.ok ? res.json() : { items: [] })),
-
-        networkAwareRequest(() =>
-          fetch("https://api-partner.spotify.com/pathfinder/v2/query", {
-            method: "POST",
-            headers: {
-              authorization: `Bearer ${effectiveToken}`,
-              "content-type": "application/json;charset=UTF-8",
-            },
-            body: JSON.stringify({
-              variables: {
-                uri: "spotify:section:0JQ5DAUnp4wcj0bCb3wh3S",
-                timeZone: userTimezone,
-                sp_t: "",
-                sectionItemsOffset: 0,
-                sectionItemsLimit: 20,
-              },
-              operationName: "homeSection",
-              extensions: {
-                persistedQuery: {
-                  version: 1,
-                  sha256Hash:
-                    "c11ff5d8f508cb1a3dad3f15ee80611cda7df7e6fb45212e466fb3e84a680bf9",
-                },
-              },
-            }),
-          }),
-        )
-          .then((res) => {
-            if (res.ok) {
-              return res.json();
-            }
-            return { data: { homeSections: { sections: [] } } };
-          })
-          .catch((err) => {
-            console.warn("Failed to fetch Spotify radio mixes:", err);
-            return { data: { homeSections: { sections: [] } } };
-          }),
+      const [mediumTerm, longTerm, recent, topArtistsData] = await Promise.all([
+        authed(
+          "https://api.spotify.com/v1/me/top/tracks?limit=50&time_range=medium_term",
+        ),
+        authed(
+          "https://api.spotify.com/v1/me/top/tracks?limit=50&time_range=long_term",
+        ),
+        authed("https://api.spotify.com/v1/me/player/recently-played?limit=50"),
+        authed("https://api.spotify.com/v1/me/top/artists?limit=10"),
       ]);
-
-      const mixes = [];
-
-      if (
-        spotifyRadioMixesResponse?.data?.homeSections?.sections?.[0]
-          ?.sectionItems?.items
-      ) {
-        const spotifyItems =
-          spotifyRadioMixesResponse.data.homeSections.sections[0].sectionItems
-            .items;
-
-        const spotifyMixPromises = spotifyItems.map(async (item, index) => {
-          if (
-            item.content?.__typename === "PlaylistResponseWrapper" &&
-            item.content?.data?.__typename === "Playlist"
-          ) {
-            const playlist = item.content.data;
-
-            if (playlist.uri === "spotify:playlist:37i9dQZF1EYkqdzj48dyYq") {
-              return null;
-            }
-
-            let tracks = [];
-
-            try {
-              const playlistResponse = await networkAwareRequest(() =>
-                fetch("https://api-partner.spotify.com/pathfinder/v2/query", {
-                  method: "POST",
-                  headers: {
-                    authorization: `Bearer ${effectiveToken}`,
-                    "content-type": "application/json;charset=UTF-8",
-                  },
-                  body: JSON.stringify({
-                    variables: {
-                      uri: playlist.uri,
-                      offset: 0,
-                      limit: 25,
-                      enableWatchFeedEntrypoint: true,
-                    },
-                    operationName: "fetchPlaylist",
-                    extensions: {
-                      persistedQuery: {
-                        version: 1,
-                        sha256Hash:
-                          "cd2275433b29f7316176e7b5b5e098ae7744724e1a52d63549c76636b3257749",
-                      },
-                    },
-                  }),
-                }),
-              );
-
-              if (playlistResponse.ok) {
-                const playlistData = await playlistResponse.json();
-
-                if (playlistData?.data?.playlistV2?.content?.items) {
-                  tracks = playlistData.data.playlistV2.content.items
-                    .filter(
-                      (item) =>
-                        item.itemV2?.__typename === "TrackResponseWrapper" &&
-                        item.itemV2?.data,
-                    )
-                    .map((item, trackIndex) => {
-                      const track = item.itemV2.data;
-                      return {
-                        id: track.uri.replace("spotify:track:", ""),
-                        name: track.name,
-                        uri: track.uri,
-                        uniqueId: `${playlist.uri.replace("spotify:playlist:", "spotify-")}-${track.uri.replace("spotify:track:", "")}`,
-                        artists:
-                          track.artists?.items?.map((artist) => ({
-                            id: artist.uri.replace("spotify:artist:", ""),
-                            name: artist.profile?.name || "Unknown Artist",
-                            uri: artist.uri,
-                          })) || [],
-                        album: {
-                          id:
-                            track.albumOfTrack?.uri?.replace(
-                              "spotify:album:",
-                              "",
-                            ) || "",
-                          name: track.albumOfTrack?.name || "Unknown Album",
-                          uri: track.albumOfTrack?.uri || "",
-                        },
-                      };
-                    });
-                }
-              }
-            } catch (error) {
-              console.warn(
-                `Failed to fetch tracks for playlist ${playlist.uri}:`,
-                error,
-              );
-            }
-
-            const spotifyMix = {
-              id: playlist.uri.replace("spotify:playlist:", "spotify-"),
-              name: playlist.name,
-              images: playlist.images?.items?.[0]?.sources
-                ? [{ url: playlist.images.items[0].sources[0].url }]
-                : [{ url: "/images/radio-cover/discoveries.webp" }],
-              tracks: tracks,
-              type: "spotify-radio",
-              uri: playlist.uri,
-              description: playlist.description,
-              format: playlist.format,
-              sortOrder: 100 + index,
-              extractedColors: playlist.images?.items?.[0]?.extractedColors,
-            };
-
-            return spotifyMix;
-          }
-          return null;
-        });
-
-        const resolvedSpotifyMixes = await Promise.all(spotifyMixPromises);
-        spotifyMixes.push(
-          ...resolvedSpotifyMixes.filter((mix) => mix !== null),
-        );
-      }
 
       const getUniqueTracksById = (tracks) => {
         const uniqueMap = new Map();
         tracks.forEach((track) => {
-          if (!uniqueMap.has(track.id)) {
+          if (track?.id && !uniqueMap.has(track.id)) {
             uniqueMap.set(track.id, track);
           }
         });
         return Array.from(uniqueMap.values());
       };
 
-      const addUniqueIds = (tracks, mixId) => {
-        return tracks.map((track) => ({
-          ...track,
-          uniqueId: `${mixId}-${track.id}`,
-        }));
-      };
+      const addUniqueIds = (tracks, mixId) =>
+        tracks.map((track) => ({ ...track, uniqueId: `${mixId}-${track.id}` }));
 
-      if (topTracksMediumTerm.items && topTracksMediumTerm.items.length > 0) {
+      const mixes = [];
+
+      if (mediumTerm?.items?.length) {
         mixes.push({
           id: "top-mix",
           name: "Your Top Mix",
           images: [{ url: "/images/radio-cover/top.webp" }],
-          tracks: addUniqueIds(topTracksMediumTerm.items, "top-mix"),
+          tracks: addUniqueIds(
+            getUniqueTracksById(mediumTerm.items),
+            "top-mix",
+          ),
           type: "static",
           sortOrder: 1,
         });
       }
 
-      if (topArtists.items && topArtists.items.length > 0) {
-        const artistsToFetch = topArtists.items.slice(0, 5);
-
-        const artistTracksPromises = artistsToFetch.map((artist) =>
-          networkAwareRequest(() =>
-            fetch(
-              `https://api.spotify.com/v1/artists/${artist.id}/top-tracks?market=US`,
-              {
-                headers: {
-                  Authorization: `Bearer ${effectiveToken}`,
-                },
-              },
-            ),
-          ).then((res) => (res.ok ? res.json() : { tracks: [] })),
+      // /artists/{id}/top-tracks is 403 without extended quota, but searching
+      // `artist:"Name"` returns the same popular tracks and is not restricted.
+      if (topArtistsData?.items?.length) {
+        const seeds = topArtistsData.items.slice(0, 5);
+        const perArtist = await Promise.all(
+          seeds.map((artist) =>
+            authed(
+              `https://api.spotify.com/v1/search?q=${encodeURIComponent(
+                `artist:"${artist.name}"`,
+              )}&type=track&limit=10`,
+            ).then((data) => data?.tracks?.items?.filter(Boolean) || []),
+          ),
         );
 
-        const artistTracksResponses = await Promise.all(artistTracksPromises);
-
-        const allArtistTracks = artistTracksResponses.flatMap(
-          (response) => response.tracks || [],
-        );
-
-        const uniqueArtistTracks = getUniqueTracksById(allArtistTracks)
+        const discoveries = getUniqueTracksById(perArtist.flat())
           .sort(() => Math.random() - 0.5)
           .slice(0, 50);
 
-        if (uniqueArtistTracks.length > 0) {
+        if (discoveries.length) {
           mixes.push({
             id: "discoveries-mix",
             name: "Discoveries",
             images: [{ url: "/images/radio-cover/discoveries.webp" }],
-            tracks: addUniqueIds(uniqueArtistTracks, "discoveries-mix"),
+            tracks: addUniqueIds(discoveries, "discoveries-mix"),
             type: "static",
             sortOrder: 2,
           });
         }
       }
 
-      const allMixes = [...mixes, ...spotifyMixes];
-      const sortedMixes = allMixes.sort((a, b) => a.sortOrder - b.sortOrder);
+      if (longTerm?.items?.length) {
+        mixes.push({
+          id: "all-time-mix",
+          name: "All Time",
+          images: [{ url: "/images/radio-cover/top.webp" }],
+          tracks: addUniqueIds(
+            getUniqueTracksById(longTerm.items),
+            "all-time-mix",
+          ),
+          type: "static",
+          sortOrder: 3,
+        });
+      }
 
-      setRadioMixes(sortedMixes);
+      if (recent?.items?.length) {
+        const recentTracks = getUniqueTracksById(
+          recent.items.map((item) => item.track).filter(Boolean),
+        );
+        if (recentTracks.length) {
+          mixes.push({
+            id: "recent-mix",
+            name: "Recently Played",
+            images: [{ url: "/images/radio-cover/discoveries.webp" }],
+            tracks: addUniqueIds(recentTracks, "recent-mix"),
+            type: "static",
+            sortOrder: 4,
+          });
+        }
+      }
+
+      mixes.sort((a, b) => a.sortOrder - b.sortOrder);
+      setRadioMixes(mixes);
       setErrors((prev) => ({ ...prev, radioMixes: null }));
-      return sortedMixes;
+      return mixes;
     } catch (err) {
       console.error("Error fetching radio mixes:", err);
       setErrors((prev) => ({ ...prev, radioMixes: err.message }));
-
-      const fallbackMixes = [
-        {
-          id: "top-mix",
-          name: "Your Top Mix",
-          images: [{ url: "/images/radio-cover/top.webp" }],
-          tracks: [],
-          type: "static",
-          sortOrder: 1,
-        },
-        {
-          id: "discoveries-mix",
-          name: "Discoveries",
-          images: [{ url: "/images/radio-cover/discoveries.webp" }],
-          tracks: [],
-          type: "static",
-          sortOrder: 2,
-        },
-        ...spotifyMixes,
-      ];
-
-      setRadioMixes(fallbackMixes);
-      return fallbackMixes;
+      setRadioMixes([]);
+      return [];
     } finally {
       setIsLoading((prev) => ({ ...prev, radioMixes: false }));
     }
@@ -674,6 +510,7 @@ export function useSpotifyData(
 
     const hasValidToken = await waitForValidToken();
     if (!hasValidToken) {
+      initialLoadTriggeredRef.current = false;
       return;
     }
 
@@ -697,6 +534,7 @@ export function useSpotifyData(
       likedSongs: true,
       radioMixes: true,
       userShows: true,
+      savedEpisodes: true,
     });
 
     try {
@@ -714,6 +552,7 @@ export function useSpotifyData(
           fetchLikedSongs,
           fetchRadioMixes,
           fetchUserShows,
+          fetchSavedEpisodes,
         ].map((fn, index) => delay(index * 250).then(fn)),
       );
 
@@ -731,6 +570,7 @@ export function useSpotifyData(
           setRetryCount((prev) => prev + 1);
           retryTimeoutRef.current = setTimeout(
             () => {
+              initialLoadTriggeredRef.current = false;
               dataLoadingAttemptedRef.current = false;
               dataFetchingInProgressRef.current = false;
               loadInitialData();
@@ -751,6 +591,7 @@ export function useSpotifyData(
         setRetryCount((prev) => prev + 1);
         retryTimeoutRef.current = setTimeout(
           () => {
+            initialLoadTriggeredRef.current = false;
             dataLoadingAttemptedRef.current = false;
             dataFetchingInProgressRef.current = false;
             loadInitialData();
@@ -772,6 +613,7 @@ export function useSpotifyData(
     fetchLikedSongs,
     fetchRadioMixes,
     fetchUserShows,
+    fetchSavedEpisodes,
     skipInitialFetch,
   ]);
 
@@ -814,6 +656,7 @@ export function useSpotifyData(
       likedSongs: true,
       radioMixes: true,
       userShows: true,
+      savedEpisodes: true,
     }));
 
     try {
@@ -822,6 +665,7 @@ export function useSpotifyData(
       await fetchLikedSongs();
       await fetchRadioMixes();
       await fetchUserShows();
+      await fetchSavedEpisodes();
     } catch (error) {
       console.error("Error refreshing data:", error);
     } finally {
@@ -835,6 +679,7 @@ export function useSpotifyData(
     fetchLikedSongs,
     fetchRadioMixes,
     fetchUserShows,
+    fetchSavedEpisodes,
     initialDataLoaded,
   ]);
 
@@ -859,6 +704,7 @@ export function useSpotifyData(
     likedSongs,
     radioMixes,
     userShows,
+    savedEpisodes,
     initialDataLoaded,
     isLoading: {
       data: isLoadingData,
@@ -871,6 +717,7 @@ export function useSpotifyData(
       likedSongs: isLoading.likedSongs,
       radioMixes: isLoading.radioMixes,
       userShows: isLoading.userShows,
+      savedEpisodes: isLoading.savedEpisodes,
     },
     errors,
     refreshData,
@@ -880,5 +727,6 @@ export function useSpotifyData(
     refreshLikedSongs: fetchLikedSongs,
     refreshRadioMixes: fetchRadioMixes,
     refreshUserShows: fetchUserShows,
+    refreshSavedEpisodes: fetchSavedEpisodes,
   };
 }

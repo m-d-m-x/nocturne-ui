@@ -10,10 +10,18 @@ export const DNS_READY_DELAY = 5000;
 
 const NETWORK_CHECK_BYPASS_KEY = "networkCheckBypass";
 
-const bypassAtLoad =
-  typeof window !== "undefined" &&
-  localStorage.getItem(NETWORK_CHECK_BYPASS_KEY) === "true";
-if (bypassAtLoad) {
+function isBypassed() {
+  try {
+    return (
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem(NETWORK_CHECK_BYPASS_KEY) === "true"
+    );
+  } catch {
+    return false;
+  }
+}
+
+if (typeof window !== "undefined" && isBypassed()) {
   isConnected = true;
 }
 
@@ -82,7 +90,22 @@ function setupNetworkMonitoring() {
   return addGlobalWsListener(listenerId, {
     onMessage: updateNetworkStatus,
     onClose: () => {
-      isConnected = false;
+      // The nocturned WebSocket dropping tells us nothing about whether the
+      // device has internet - it usually just means nocturned restarted.
+      // Treating it as "offline" used to latch isConnected false with nothing
+      // able to set it back, which silently blocked every Spotify request.
+      // Re-check real connectivity instead of assuming the worst.
+      if (isBypassed()) return;
+
+      checkNetworkConnectivity()
+        .then((status) => {
+          if (status.isConnected) return;
+          console.warn("Network unreachable after nocturned WebSocket closed");
+          isConnected = false;
+        })
+        .catch(() => {
+          isConnected = false;
+        });
     },
   });
 }
@@ -94,31 +117,66 @@ const RETRY_DELAY = 1000;
 
 export function waitForNetwork(checkIntervalMs = 1000) {
   return new Promise((resolve) => {
-    const bypass =
-      typeof localStorage !== "undefined" &&
-      localStorage.getItem(NETWORK_CHECK_BYPASS_KEY) === "true";
-    if (bypass || isConnected) {
+    if (isBypassed() || isConnected) {
       resolve();
       return;
     }
 
-    const handleOnline = () => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("browserOnlyModeOnline", handleOnline);
+      clearInterval(pollId);
       resolve();
     };
 
+    const handleOnline = () => finish();
+
     window.addEventListener("online", handleOnline);
     window.addEventListener("browserOnlyModeOnline", handleOnline);
+
+    // Don't rely purely on a future 'online' event that may never fire -
+    // actively re-check real connectivity too, since isConnected can get
+    // flipped false by something unrelated (e.g. nocturned's own WebSocket
+    // blipping) without anything ever telling us it's actually fine.
+    const pollId = setInterval(async () => {
+      try {
+        const status = await checkNetworkConnectivity();
+        if (status.isConnected) {
+          isConnected = true;
+          finish();
+        }
+      } catch {
+        // keep polling
+      }
+    }, checkIntervalMs);
   });
 }
 
 export function waitForStableNetwork(stabilityDelayMs = 10000) {
   return new Promise((resolve) => {
+    if (isBypassed()) {
+      resolve();
+      return;
+    }
+
     let stabilityTimeout = null;
     let isWaitingForOnline = false;
 
+    // Hard ceiling: without this, a stale isConnected=false with no further
+    // 'online' event blocks token refresh forever.
+    const hardTimeout = setTimeout(
+      () => {
+        cleanup();
+        resolve();
+      },
+      Math.max(stabilityDelayMs * 3, 30000),
+    );
+
     const cleanup = () => {
+      clearTimeout(hardTimeout);
       if (stabilityTimeout) {
         clearTimeout(stabilityTimeout);
         stabilityTimeout = null;
@@ -173,11 +231,15 @@ export async function networkAwareRequest(
   const { requireNetwork = false } = options;
 
   try {
-    const bypass =
-      typeof localStorage !== "undefined" &&
-      localStorage.getItem(NETWORK_CHECK_BYPASS_KEY) === "true";
+    const bypass = isBypassed();
     if (!bypass && !isConnected) {
-      throw new Error("No network connection");
+      // Don't trust a possibly-stale cached flag: confirm before refusing to
+      // send, otherwise one bad reading blocks every request indefinitely.
+      const status = await checkNetworkConnectivity();
+      if (!status.isConnected) {
+        throw new Error("No network connection");
+      }
+      isConnected = true;
     }
 
     const requestInfo = await requestFn();
@@ -199,7 +261,14 @@ export async function networkAwareRequest(
       retryCount < MAX_RETRIES &&
       (response.status >= 500 || [429, 408, 0, 304].includes(response.status))
     ) {
-      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
+      let delayMs = RETRY_DELAY;
+      if (response.status === 429) {
+        const retryAfter = parseInt(response.headers.get("Retry-After"), 10);
+        if (!isNaN(retryAfter)) {
+          delayMs = retryAfter * 1000;
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
       return networkAwareRequest(requestFn, retryCount + 1, options);
     }
 

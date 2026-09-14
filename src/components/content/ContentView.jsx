@@ -1,11 +1,90 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSpotifyPlayerControls } from "../../hooks/useSpotifyPlayerControls";
+import {
+  getPlaylistTrackCount,
+  playlistItemsUrl,
+  unwrapPlaylistItems,
+} from "../../utils/spotifyPlaylist";
 import { useNavigation } from "../../hooks/useNavigation";
 import { CarThingIcon } from "../common/icons";
 import { useButtonMapping } from "../../hooks/useButtonMapping";
 import ButtonMappingOverlay from "../common/overlays/ButtonMappingOverlay";
 import ScrollingText from "../common/ScrollingText";
+import { networkAwareRequest } from "../../utils/networkAwareRequest";
+
+// Search is capped at limit=10, and an `artist:"Name"` filter frequently matches
+// only a handful (Black Label Society reports total: 5), so offset cannot help.
+// Top up from the discography instead. /albums?ids= is 403 without extended
+// quota, so albums have to be fetched one at a time.
+const ARTIST_TRACK_TARGET = 30;
+const ARTIST_ALBUM_LIMIT = 6;
+
+async function gatherArtistTracks(artistId, artistName, accessToken) {
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  const seenIds = new Set();
+  const seenNames = new Set();
+  const collected = [];
+
+  const add = (track) => {
+    if (!track?.id || !track.uri) return;
+    const name = (track.name || "").toLowerCase().trim();
+    // Live/deluxe/remaster reissues repeat the same songs across albums.
+    if (seenIds.has(track.id) || seenNames.has(name)) return;
+    seenIds.add(track.id);
+    if (name) seenNames.add(name);
+    collected.push(track);
+  };
+
+  try {
+    const res = await networkAwareRequest(() =>
+      fetch(
+        `https://api.spotify.com/v1/search?q=${encodeURIComponent(
+          `artist:"${artistName}"`,
+        )}&type=track&limit=10`,
+        { headers },
+      ),
+    );
+    if (res.ok) {
+      const data = await res.json();
+      (data.tracks?.items || []).filter(Boolean).forEach(add);
+    }
+  } catch (err) {
+    console.warn("Artist track search failed:", err?.message);
+  }
+
+  if (collected.length >= ARTIST_TRACK_TARGET) {
+    return collected.slice(0, ARTIST_TRACK_TARGET);
+  }
+
+  try {
+    const albumsRes = await networkAwareRequest(() =>
+      fetch(
+        `https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=album,single&limit=${ARTIST_ALBUM_LIMIT}`,
+        { headers },
+      ),
+    );
+    if (albumsRes.ok) {
+      const albums = ((await albumsRes.json()).items || []).filter(Boolean);
+      const details = await Promise.all(
+        albums.map((album) =>
+          networkAwareRequest(() =>
+            fetch(`https://api.spotify.com/v1/albums/${album.id}`, { headers }),
+          )
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null),
+        ),
+      );
+      details.forEach((album) => {
+        (album?.tracks?.items || []).filter(Boolean).forEach(add);
+      });
+    }
+  } catch (err) {
+    console.warn("Artist discography fetch failed:", err?.message);
+  }
+
+  return collected.slice(0, ARTIST_TRACK_TARGET);
+}
 
 const ContentView = ({
   accessToken,
@@ -15,6 +94,7 @@ const ContentView = ({
   currentlyPlayingTrackUri,
   currentPlayback,
   radioMixes = [],
+  savedEpisodes = [],
   updateGradientColors,
   setIgnoreNextRelease,
   onNavigateToNowPlaying,
@@ -64,7 +144,7 @@ const ContentView = ({
       }
 
       const data = await response.json();
-      allTracks = [...allTracks, ...data.items.map((item) => item.track)];
+      allTracks = [...allTracks, ...unwrapPlaylistItems(data.items)];
       nextUrl = data.next;
     }
 
@@ -94,7 +174,7 @@ const ContentView = ({
       const data = await response.json();
       const newTracks =
         contentType === "playlist"
-          ? data.items.map((item) => item.track)
+          ? unwrapPlaylistItems(data.items)
           : data.items;
 
       setTracks((prevTracks) => [...prevTracks, ...newTracks]);
@@ -297,43 +377,52 @@ const ContentView = ({
               );
             }
 
-            tracksData = contentData.tracks.items.map((item) => item.track);
-            setNextUrl(contentData.tracks.next);
-            setHasMoreTracks(!!contentData.tracks.next);
+            // `/playlists/{id}` no longer embeds the track list, so the items
+            // page is a separate request. Followed (not owned) playlists 403
+            // here - degrade to an empty track list rather than blanking the
+            // whole view.
+            const itemsResponse = await fetch(playlistItemsUrl(contentId), {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+            });
+
+            if (itemsResponse.ok) {
+              const itemsData = await itemsResponse.json();
+              tracksData = unwrapPlaylistItems(itemsData.items);
+              setNextUrl(itemsData.next);
+              setHasMoreTracks(!!itemsData.next);
+            } else {
+              console.warn(
+                `Playlist items unavailable (${itemsResponse.status}) for ${contentId}`,
+              );
+              tracksData = [];
+              setNextUrl(null);
+              setHasMoreTracks(false);
+            }
+
             setTracksPerPage(tracksData.length);
             setLoadedPages(1);
             break;
           }
 
           case "artist": {
-            const [artistResponse, topTracksResponse] = await Promise.all([
-              fetch(`https://api.spotify.com/v1/artists/${contentId}`, {
+            const artistResponse = await fetch(
+              `https://api.spotify.com/v1/artists/${contentId}`,
+              {
                 headers: {
                   Authorization: `Bearer ${accessToken}`,
                 },
-              }),
-              fetch(
-                `https://api.spotify.com/v1/artists/${contentId}/top-tracks?market=from_token`,
-                {
-                  headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                  },
-                },
-              ),
-            ]);
+              },
+            );
 
-            if (!artistResponse.ok || !topTracksResponse.ok) {
+            if (!artistResponse.ok) {
               throw new Error(
-                `Failed to fetch artist data: ${
-                  !artistResponse.ok
-                    ? artistResponse.status
-                    : topTracksResponse.status
-                }`,
+                `Failed to fetch artist data: ${artistResponse.status}`,
               );
             }
 
             contentData = await artistResponse.json();
-            const topTracksData = await topTracksResponse.json();
 
             if (
               contentData?.images &&
@@ -346,7 +435,36 @@ const ContentView = ({
               );
             }
 
-            tracksData = topTracksData.tracks;
+            // top-tracks is 403 without extended quota. Searching the artist by
+            // name is not restricted and surfaces the same popular tracks, so
+            // fall back to it - and never let a missing track list take down the
+            // whole artist page, which is what used to happen.
+            tracksData = [];
+            try {
+              const topTracksResponse = await fetch(
+                `https://api.spotify.com/v1/artists/${contentId}/top-tracks?market=from_token`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                  },
+                },
+              );
+
+              if (topTracksResponse.ok) {
+                tracksData = (await topTracksResponse.json()).tracks || [];
+              } else {
+                tracksData = await gatherArtistTracks(
+                  contentId,
+                  contentData.name,
+                  accessToken,
+                );
+              }
+            } catch (trackErr) {
+              console.warn(
+                `Artist tracks unavailable for ${contentId}:`,
+                trackErr?.message,
+              );
+            }
             break;
           }
 
@@ -415,6 +533,39 @@ const ContentView = ({
             break;
           }
 
+          // Saved episodes grouped under their show. The episodes are already in
+          // hand from /me/episodes (each one embeds its show), so this needs no
+          // request - and unlike opening the show itself, it lists only what the
+          // user actually saved rather than the full back catalogue.
+          case "saved-episodes": {
+            const episodes = savedEpisodes
+              .map((item) => item?.episode)
+              .filter((ep) => ep && ep.show?.id === contentId);
+
+            if (!episodes.length) {
+              throw new Error(`No saved episodes for show: ${contentId}`);
+            }
+
+            const show = episodes[0].show;
+            contentData = {
+              ...show,
+              type: "saved-episodes",
+              savedCount: episodes.length,
+            };
+
+            if (contentData.images?.length > 0 && updateGradientColors) {
+              updateGradientColors(
+                contentData.images[1]?.url || contentData.images[0].url,
+                contentType,
+              );
+            }
+
+            tracksData = episodes;
+            setTracksPerPage(tracksData.length);
+            setLoadedPages(1);
+            break;
+          }
+
           case "show": {
             const [showResponse, episodesResponse] = await Promise.all([
               fetch(`https://api.spotify.com/v1/shows/${contentId}`, {
@@ -479,7 +630,14 @@ const ContentView = ({
     };
 
     fetchContent();
-  }, [contentId, contentType, accessToken, radioMixes, updateGradientColors]);
+  }, [
+    contentId,
+    contentType,
+    accessToken,
+    radioMixes,
+    savedEpisodes,
+    updateGradientColors,
+  ]);
 
   function handleBack() {
     if (onClose) {
@@ -641,13 +799,19 @@ const ContentView = ({
         <CarThingIcon className="h-16 w-auto mb-2" />
         <h3
           className="text-white truncate tracking-tight"
-          style={{ fontSize: `calc(var(--text-scale)*36px)`, fontWeight: "560" }}
+          style={{
+            fontSize: `calc(var(--text-scale)*36px)`,
+            fontWeight: "560",
+          }}
         >
           Error Loading Content
         </h3>
         <p
           className="text-white/60 truncate tracking-tight"
-          style={{ fontSize: `calc(var(--text-scale)*24px)`, fontWeight: "560" }}
+          style={{
+            fontSize: `calc(var(--text-scale)*24px)`,
+            fontWeight: "560",
+          }}
         >
           {error}
         </p>
@@ -675,15 +839,19 @@ const ContentView = ({
       case "album":
         return content.artists?.map((artist) => artist.name).join(", ");
       case "artist":
-        return `${formatNumber(content.followers?.total || 0)} Followers`;
+        return "";
       case "playlist":
-        return `${formatNumber(content.tracks?.total || 0)} Songs`;
+        return `${formatNumber(getPlaylistTrackCount(content))} Songs`;
       case "liked-songs":
         return `${formatNumber(content.tracks?.total || 0)} Songs`;
       case "mix":
         return `${content.tracks?.length || 0} Tracks`;
       case "show":
         return content.publisher;
+      case "saved-episodes":
+        return `${formatNumber(content.savedCount || 0)} Saved Episode${
+          content.savedCount === 1 ? "" : "s"
+        }`;
       default:
         return "";
     }
@@ -720,13 +888,21 @@ const ContentView = ({
           {getMappingStatusText()}
           <h4
             className="mt-2 text-white truncate tracking-tight"
-            style={{ fontSize: `calc(var(--text-scale)*36px)`, fontWeight: "580", maxWidth: "280px" }}
+            style={{
+              fontSize: `calc(var(--text-scale)*36px)`,
+              fontWeight: "580",
+              maxWidth: "280px",
+            }}
           >
             {content.name}
           </h4>
           <h4
             className="text-white/60 truncate tracking-tight"
-            style={{ fontSize: `calc(var(--text-scale)*28px)`, fontWeight: "560", maxWidth: "280px" }}
+            style={{
+              fontSize: `calc(var(--text-scale)*28px)`,
+              fontWeight: "560",
+              maxWidth: "280px",
+            }}
           >
             {getSubtitle()}
           </h4>
@@ -748,7 +924,12 @@ const ContentView = ({
                 selectedTrackIndex === index ? "scale-105" : ""
               }`}
               onClick={() => (track.uri ? handleTrackPlay(track, index) : null)}
-              style={{ transition: "transform 0.2s ease-out", borderRadius: '10px', background: selectedTrackIndex === index ? "rgb(255 255 255 / 10%)" : "" }}
+              style={{
+                transition: "transform 0.2s ease-out",
+                borderRadius: "10px",
+                background:
+                  selectedTrackIndex === index ? "rgb(255 255 255 / 10%)" : "",
+              }}
               data-track-index={index}
             >
               <div
@@ -808,7 +989,10 @@ const ContentView = ({
                   {contentType === "show" ? (
                     <p
                       className="text-white/60 truncate tracking-tight"
-                      style={{ fontSize: `calc(var(--text-scale)*28px)`, fontWeight: "560" }}
+                      style={{
+                        fontSize: `calc(var(--text-scale)*28px)`,
+                        fontWeight: "560",
+                      }}
                     >
                       {track.release_date
                         ? new Date(track.release_date).toLocaleDateString(
@@ -829,7 +1013,10 @@ const ContentView = ({
                         className={`text-white/60 truncate tracking-tight ${
                           artistIndex < track.artists.length - 1 ? "mr-2" : ""
                         }`}
-                        style={{ fontSize: `calc(var(--text-scale)*28px)`, fontWeight: "560" }}
+                        style={{
+                          fontSize: `calc(var(--text-scale)*28px)`,
+                          fontWeight: "560",
+                        }}
                       >
                         {artist?.name === null && artist?.type
                           ? artist.type
@@ -851,7 +1038,10 @@ const ContentView = ({
                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mr-4"></div>
                 <p
                   className="text-white/60"
-                  style={{ fontSize: `calc(var(--text-scale)*24px)`, fontWeight: "560" }}
+                  style={{
+                    fontSize: `calc(var(--text-scale)*24px)`,
+                    fontWeight: "560",
+                  }}
                 >
                   Loading more {contentType === "show" ? "episodes" : "tracks"}
                   ...
