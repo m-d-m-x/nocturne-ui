@@ -35,6 +35,11 @@ import {
   SpeedIcon,
 } from "../common/icons";
 
+// How long a locally-held play/pause state may disagree with the server before
+// the server wins. Long enough to cover the PUT plus a poll issued just before
+// the press; short enough that a silently failed press self-corrects.
+const OPTIMISTIC_HOLD_MS = 4000;
+
 export default function NowPlaying({
   accessToken,
   currentPlayback,
@@ -101,6 +106,44 @@ export default function NowPlaying({
     updateProgress,
     triggerRefresh,
   } = playbackProgress;
+
+  // Optimistic play/pause.
+  //
+  // The icon used to read currentPlayback.is_playing directly, so pressing it
+  // did nothing visible until the PUT completed and a poll returned the new
+  // state - a second or more of feeling broken. This holds the pressed state
+  // locally and lets the server catch up.
+  //
+  // null means "no local opinion, trust the server". A value is dropped as soon
+  // as the server agrees, or once the hold expires, whichever comes first, so a
+  // press that silently failed cannot leave the icon permanently wrong.
+  const [optimisticPlaying, setOptimisticPlaying] = useState(null);
+  const optimisticUntilRef = useRef(0);
+
+  const serverPlaying = !!currentPlayback?.is_playing;
+  const effectivePlaying =
+    optimisticPlaying === null ? serverPlaying : optimisticPlaying;
+
+  useEffect(() => {
+    if (optimisticPlaying === null) return;
+
+    // The server reflects the press; the local override has done its job.
+    if (serverPlaying === optimisticPlaying) {
+      setOptimisticPlaying(null);
+      return;
+    }
+
+    // It disagrees. That is expected for a moment - the PUT may still be in
+    // flight, or a poll issued before the press can land afterwards - so hold
+    // briefly, then accept the server as the truth.
+    const remaining = optimisticUntilRef.current - Date.now();
+    if (remaining <= 0) {
+      setOptimisticPlaying(null);
+      return;
+    }
+    const timer = setTimeout(() => setOptimisticPlaying(null), remaining);
+    return () => clearTimeout(timer);
+  }, [serverPlaying, optimisticPlaying]);
 
   const convertTimeToLength = (ms, elapsed) => {
     let totalSeconds = Math.floor(ms / 1000);
@@ -202,13 +245,32 @@ export default function NowPlaying({
   }, [isStartingPlayback, currentPlayback?.item, currentPlayback?.is_playing]);
 
   const handlePlayPause = async () => {
-    if (currentPlayback?.is_playing) {
-      await pausePlayback();
+    // Branch on the effective state, not the server's, so a rapid second press
+    // acts on what the user can currently see.
+    const wantPlaying = !effectivePlaying;
+
+    // Only the two fast paths are made optimistic. The cold-start path below
+    // has to find and claim a device first, and already shows its own
+    // isStartingPlayback feedback.
+    if (effectivePlaying || currentPlayback?.item) {
+      setOptimisticPlaying(wantPlaying);
+      optimisticUntilRef.current = Date.now() + OPTIMISTIC_HOLD_MS;
+    }
+
+    // The icon flips instantly, but the progress bar is driven by server state,
+    // so pull that forward too rather than leaving it to the next poll - a
+    // paused icon above a still-advancing bar reads as a bug.
+    const settle = () => setTimeout(() => triggerRefresh(), 350);
+
+    if (effectivePlaying) {
+      if (await pausePlayback()) settle();
+      else setOptimisticPlaying(null);
       return;
     }
 
     if (currentPlayback?.item) {
-      await playTrack();
+      if (await playTrack()) settle();
+      else setOptimisticPlaying(null);
       return;
     }
 
@@ -638,12 +700,12 @@ export default function NowPlaying({
   }, [volume]);
 
   const PlayPauseIcon = useMemo(() => {
-    return currentPlayback?.is_playing ? (
+    return effectivePlaying ? (
       <PauseIcon className="w-14 h-14" />
     ) : (
       <PlayIcon className="w-14 h-14" />
     );
-  }, [currentPlayback?.is_playing]);
+  }, [effectivePlaying]);
 
   useEffect(() => {
     if (currentPlayback?.is_playing) {
@@ -799,7 +861,7 @@ export default function NowPlaying({
               ? progressPercentage
               : 0
           }
-          isPlaying={isPlaying && !isStartingPlayback}
+          isPlaying={effectivePlaying && !isStartingPlayback}
           durationMs={duration}
           onSeek={handleSeek}
           onPlayPause={handlePlayPause}
@@ -828,8 +890,12 @@ export default function NowPlaying({
               </>
             ) : (
               <>
-                <span className="text-white/60 text-[length:calc(var(--text-scale)*20px)]">--:--</span>
-                <span className="text-white/60 text-[length:calc(var(--text-scale)*20px)]">--:--</span>
+                <span className="text-white/60 text-[length:calc(var(--text-scale)*20px)]">
+                  --:--
+                </span>
+                <span className="text-white/60 text-[length:calc(var(--text-scale)*20px)]">
+                  --:--
+                </span>
               </>
             )}
           </div>
@@ -875,7 +941,9 @@ export default function NowPlaying({
                         onClick={() => handleSpeedChange(speed)}
                       >
                         <div className="group flex items-center justify-between px-4 py-[16px] text-sm text-white font-[560] tracking-tight focus:outline-none outline-none">
-                          <span className="text-[length:calc(var(--text-scale)*24px)]">{speed}x</span>
+                          <span className="text-[length:calc(var(--text-scale)*24px)]">
+                            {speed}x
+                          </span>
                           {playbackSpeed === speed && (
                             <div className="w-2 h-2 bg-white rounded-full"></div>
                           )}
@@ -1035,7 +1103,9 @@ export default function NowPlaying({
                 )}
                 <MenuItem onClick={onOpenDeviceSwitcher}>
                   <div className="group flex items-center justify-between px-4 py-[16px] text-sm text-white font-[560] tracking-tight focus:outline-none outline-none">
-                    <span className="text-[length:calc(var(--text-scale)*28px)]">Switch Device</span>
+                    <span className="text-[length:calc(var(--text-scale)*28px)]">
+                      Switch Device
+                    </span>
                     <DeviceSwitcherIcon
                       aria-hidden="true"
                       className="h-8 w-8 text-white/60"

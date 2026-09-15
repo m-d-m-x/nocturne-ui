@@ -22,8 +22,10 @@ import {
   useBluetooth,
   useSystemUpdate,
   useNocturneInfo,
+  useNocturned,
 } from "./hooks/useNocturned";
 import { useSpotifyData } from "./hooks/useSpotifyData";
+import { useDeviceAttach } from "./hooks/useDeviceAttach";
 import { useSpotifySearch } from "./hooks/useSpotifySearch";
 import SearchResultsView from "./components/content/SearchResultsView";
 import { usePlaybackProgress } from "./hooks/usePlaybackProgress";
@@ -40,6 +42,7 @@ import LockView from "./components/common/LockView";
 import LoadingScreen from "./components/common/LoadingScreen";
 import PowerMenuOverlay from "./components/common/overlays/PowerMenuOverlay";
 import ListeningOverlay from "./components/common/overlays/ListeningOverlay";
+import WakeWordArmer from "./components/common/WakeWordArmer";
 import { CheckIcon } from "./components/common/icons";
 import { SettingsUpdateIcon } from "./components/common/icons";
 import UpdateCheckNotification from "./components/common/notifications/UpdateCheckNotification";
@@ -299,6 +302,7 @@ function useGlobalButtonMapping({
           extraLongPressTimerRef.current = setTimeout(() => {
             extraLongPressFiredRef.current = true;
             extraLongPressTimerRef.current = null;
+            setWakeSessionActive(false);
             setListeningOverlayVisible(true);
           }, 675);
         }
@@ -510,6 +514,10 @@ function App() {
   const [initialTokenRefreshDone, setInitialTokenRefreshDone] = useState(false);
   const [powerMenuVisible, setPowerMenuVisible] = useState(false);
   const [listeningOverlayVisible, setListeningOverlayVisible] = useState(false);
+  // True when the current overlay was opened by the wake word, meaning
+  // nocturned already has a capture running and the overlay must attach to it
+  // rather than starting its own.
+  const [wakeSessionActive, setWakeSessionActive] = useState(false);
   const {
     results: searchResults,
     loading: searchLoading,
@@ -645,6 +653,14 @@ function App() {
 
   const { updateStatus, progress, isUpdating, isError, errorMessage } =
     useSystemUpdate();
+
+  // Shares the global socket with the other nocturned hooks; both callbacks are
+  // stable, so the wake listener registers once rather than on every render.
+  const { addMessageListener, removeMessageListener } = useNocturned();
+
+  // On a cold boot the phone is often not advertising itself yet, so the head
+  // unit has nothing to control until something wakes Spotify on the phone.
+  useDeviceAttach({ accessToken, isAuthenticated });
 
   const [gradientState, updateGradientColors] = useGradientState(activeSection);
 
@@ -1090,25 +1106,89 @@ function App() {
   );
 
   const handleListeningClose = useCallback(() => {
+    setWakeSessionActive(false);
     setListeningOverlayVisible(false);
   }, []);
+
+  // "Hey Spotify" is detected by nocturned, not here: it opens the capture the
+  // instant the phrase ends and then broadcasts this event. Showing the overlay
+  // is all that is left to do, and it has to mark the session as already
+  // running so the overlay attaches instead of starting a second capture.
+  //
+  // Registered at App level rather than inside the overlay because the overlay
+  // is not mounted until this fires.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const id = addMessageListener("wake-word", (data) => {
+      if (data?.type !== "voice_state") return;
+      if (data.payload?.state !== "wake") return;
+
+      console.log(
+        "[voice] wake word detected",
+        `score=${(data.payload.score ?? 0).toFixed(3)}`,
+      );
+      setWakeSessionActive(true);
+      setListeningOverlayVisible(true);
+    });
+
+    return () => removeMessageListener(id);
+  }, [isAuthenticated, addMessageListener, removeMessageListener]);
+
+  // Liked Songs is a library collection, not a playlist: it has no context URI
+  // the play endpoint accepts, so it is played as an explicit list of track
+  // URIs - the same approach the preset buttons use.
+  const playLikedSongs = useCallback(async () => {
+    try {
+      const response = await fetch(
+        "https://api.spotify.com/v1/me/tracks?limit=50",
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!response.ok) {
+        console.error("[voice] liked songs fetch failed:", response.status);
+        return false;
+      }
+      const data = await response.json();
+      const uris = (data.items || [])
+        .map((item) => item?.track?.uri)
+        .filter(Boolean);
+      if (!uris.length) return false;
+
+      const ok = await playerControls.playTrack(null, null, uris);
+      if (ok) localStorage.setItem("playingLikedSongs", "true");
+      return ok;
+    } catch (err) {
+      console.error("[voice] could not play liked songs:", err);
+      return false;
+    }
+  }, [accessToken, playerControls]);
+
+  // Spotify's /me/player lags a control call by a beat, so one immediate read
+  // usually still returns the previous state. Two staged reads cover it without
+  // introducing a polling loop, and they only happen on an explicit command.
+  const refreshAfterCommand = useCallback(() => {
+    setTimeout(() => refreshPlaybackState(), 600);
+    setTimeout(() => refreshPlaybackState(), 2000);
+  }, [refreshPlaybackState]);
 
   const handleVoiceCommand = useCallback(
     async (intent) => {
       switch (intent.type) {
         case "pause":
           await playerControls.pausePlayback();
+          refreshAfterCommand();
           break;
         case "resume":
           await playerControls.playTrack(null);
+          refreshAfterCommand();
           break;
         case "skip":
           await playerControls.skipToNext();
-          setTimeout(() => refreshPlaybackState(), 500);
+          refreshAfterCommand();
           break;
         case "previous":
           await playerControls.skipToPrevious();
-          setTimeout(() => refreshPlaybackState(), 500);
+          refreshAfterCommand();
           break;
         case "volume_up":
           await playerControls.setVolume(
@@ -1125,6 +1205,15 @@ function App() {
             await playerControls.setVolume(intent.args.level);
           }
           break;
+        case "liked":
+          // If the library is empty or playback refuses, fall through to the
+          // search screen rather than leaving the command with no effect.
+          if (await playLikedSongs()) {
+            refreshAfterCommand();
+          } else {
+            setActiveSection("library");
+          }
+          break;
         default: {
           const { query = "", spotifyQuery, types } = intent.args || {};
           if (!query) break;
@@ -1137,7 +1226,10 @@ function App() {
 
           // Try to act on the command directly; only fall back to showing the
           // search screen if there is nothing to play or playback refused.
-          if (results && (await playTopMatch(results, order))) break;
+          if (results && (await playTopMatch(results, order))) {
+            refreshAfterCommand();
+            break;
+          }
 
           setActiveSection("search");
           break;
@@ -1150,6 +1242,8 @@ function App() {
       searchSpotify,
       refreshPlaybackState,
       playTopMatch,
+      playLikedSongs,
+      refreshAfterCommand,
     ],
   );
 
@@ -1334,6 +1428,7 @@ function App() {
               <ConnectorContext.Provider value={connectorContextValue}>
                 <Router>
                   <FontLoader />
+                  {isAuthenticated && <WakeWordArmer />}
                   {showLoader && (
                     <LoadingScreen
                       show={showLoader}
@@ -1385,6 +1480,7 @@ function App() {
                             show={listeningOverlayVisible}
                             onClose={handleListeningClose}
                             onCommand={handleVoiceCommand}
+                            sessionAlreadyActive={wakeSessionActive}
                           />
                         )}
                       <NetworkBanner visible={displayNetworkBanner} />

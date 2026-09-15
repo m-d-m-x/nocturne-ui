@@ -26,6 +26,27 @@ let initialPlaybackFetchDone = false;
 let hasInvalidToken = false;
 let rateLimitedUntil = 0;
 
+// Coalescing for dealer-driven refreshes. A single track change produces
+// several herodotus frames, and resume-point revisions keep arriving during
+// playback, so hints are debounced and then rate limited. Worst case is one
+// request every HINT_MIN_GAP_MS, and only while events are actually flowing.
+let hintTimeout = null;
+let lastHintedFetch = 0;
+const HINT_DEBOUNCE_MS = 600;
+const HINT_MIN_GAP_MS = 2000;
+
+function scheduleHintedRefresh(run) {
+  if (hintTimeout) return;
+  const sinceLast = Date.now() - lastHintedFetch;
+  const wait = Math.max(HINT_DEBOUNCE_MS, HINT_MIN_GAP_MS - sinceLast);
+
+  hintTimeout = setTimeout(() => {
+    hintTimeout = null;
+    lastHintedFetch = Date.now();
+    run();
+  }, wait);
+}
+
 export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
   const { isConnected: isNetworkConnected } = useNetwork();
   const [currentPlayback, setCurrentPlayback] = useState(null);
@@ -321,6 +342,10 @@ export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
         clearTimeout(podcastFetchDebounceTimeout);
         podcastFetchDebounceTimeout = null;
       }
+      if (hintTimeout) {
+        clearTimeout(hintTimeout);
+        hintTimeout = null;
+      }
       isPodcastPlaying = false;
       lastPodcastFetch = 0;
 
@@ -520,6 +545,26 @@ export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
               }
             }
           }
+        } else if (
+          typeof message.uri === "string" &&
+          message.uri.startsWith("hm://") &&
+          !message.uri.startsWith("hm://pusher/")
+        ) {
+          // Spotify pushes internal telemetry to every dealer connection with
+          // no subscription, which matters because PUT
+          // /me/notifications/player answers 401 for app tokens - so
+          // PLAYER_STATE_CHANGED never arrives and the branch above is dead.
+          //
+          // Matching all hm:// traffic rather than just hm://herodotus/: these
+          // are base64 protobuf on an internal, unversioned schema, so the only
+          // thing worth reading is that a frame arrived at all. Casting wide
+          // gives the best chance of catching transitions herodotus misses -
+          // notably a bare pause, which emits no play-history event. Excludes
+          // hm://pusher/, the connection handshake handled above.
+          //
+          // Bounded by scheduleHintedRefresh, so extra frames cost nothing.
+          console.log("[player] push hint:", message.uri.slice(0, 60));
+          scheduleHintedRefresh(() => fetchCurrentPlayback(true));
         }
       };
 
@@ -635,38 +680,60 @@ export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
     };
   }, [processPlaybackState]);
 
+  // The socket lifecycle is driven through refs rather than by listing these
+  // callbacks as effect dependencies.
+  //
+  // They are not stable: fetchCurrentPlayback depends on isNetworkConnected
+  // (React state from useNetwork) and on resetPlaybackState, which in turn
+  // depends on initialFetchInProgress - state that fetchCurrentPlayback itself
+  // sets on every call. connectWebSocket then depends on fetchCurrentPlayback,
+  // so each fetch produced a new connectWebSocket identity, re-ran the effect
+  // below, and its cleanup closed the socket. Because cleanupWebSocket closes
+  // sockets in CONNECTING as well as OPEN, the connection was usually killed
+  // mid-handshake - the browser reports that as "WebSocket is closed before the
+  // connection is established", and the realtime push never starts, even though
+  // the dealer endpoint is perfectly healthy.
+  //
+  // The token is the only thing that should govern this socket's lifetime.
+  const connectRef = useRef(connectWebSocket);
+  const cleanupRef = useRef(cleanupWebSocket);
+  const fetchPlaybackRef = useRef(fetchCurrentPlayback);
+  connectRef.current = connectWebSocket;
+  cleanupRef.current = cleanupWebSocket;
+  fetchPlaybackRef.current = fetchCurrentPlayback;
+
   useEffect(() => {
-    if (accessToken) {
-      connectWebSocket();
-      if (!initialPlaybackFetchDone) {
-        initialPlaybackFetchDone = true;
-        fetchCurrentPlayback(true);
-      }
-
-      const handleNetworkRestored = () => {
-        if (
-          !globalWebSocket ||
-          (globalWebSocket.readyState !== WebSocket.OPEN &&
-            globalWebSocket.readyState !== WebSocket.CONNECTING)
-        ) {
-          connectWebSocket();
-          fetchCurrentPlayback(true);
-        }
-      };
-
-      window.addEventListener("online", handleNetworkRestored);
-      window.addEventListener("networkRestored", handleNetworkRestored);
-
-      return () => {
-        cleanupWebSocket();
-        window.removeEventListener("online", handleNetworkRestored);
-        window.removeEventListener("networkRestored", handleNetworkRestored);
-      };
+    if (!accessToken) {
+      cleanupRef.current();
+      return;
     }
-    return () => {
-      cleanupWebSocket();
+
+    connectRef.current();
+    if (!initialPlaybackFetchDone) {
+      initialPlaybackFetchDone = true;
+      fetchPlaybackRef.current(true);
+    }
+
+    const handleNetworkRestored = () => {
+      if (
+        !globalWebSocket ||
+        (globalWebSocket.readyState !== WebSocket.OPEN &&
+          globalWebSocket.readyState !== WebSocket.CONNECTING)
+      ) {
+        connectRef.current();
+        fetchPlaybackRef.current(true);
+      }
     };
-  }, [accessToken, connectWebSocket, cleanupWebSocket, fetchCurrentPlayback]);
+
+    window.addEventListener("online", handleNetworkRestored);
+    window.addEventListener("networkRestored", handleNetworkRestored);
+
+    return () => {
+      cleanupRef.current();
+      window.removeEventListener("online", handleNetworkRestored);
+      window.removeEventListener("networkRestored", handleNetworkRestored);
+    };
+  }, [accessToken]);
 
   useEffect(() => {
     if (reconnectTimeoutRef.current) {
@@ -693,11 +760,11 @@ export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
         return;
       }
 
-      cleanupWebSocket();
+      cleanupRef.current();
       connectionErrors = 0;
       isAttemptingReconnect = false;
-      connectWebSocket();
-      await fetchCurrentPlayback(true);
+      connectRef.current();
+      await fetchPlaybackRef.current(true);
     };
 
     window.addEventListener("networkRestored", handleNetworkRestored);
@@ -705,7 +772,8 @@ export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
     return () => {
       window.removeEventListener("networkRestored", handleNetworkRestored);
     };
-  }, [connectWebSocket, fetchCurrentPlayback, cleanupWebSocket]);
+    // Refs, not deps: see the note above the socket lifecycle effect.
+  }, []);
 
   useEffect(() => {
     const handleAccessTokenUpdate = (event) => {
@@ -720,14 +788,14 @@ export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
           (globalWebSocket.readyState === WebSocket.OPEN ||
             globalWebSocket.readyState === WebSocket.CONNECTING)
         ) {
-          cleanupWebSocket();
+          cleanupRef.current();
           setTimeout(() => {
-            connectWebSocket();
-            fetchCurrentPlayback(true);
+            connectRef.current();
+            fetchPlaybackRef.current(true);
           }, 100);
         } else {
-          connectWebSocket();
-          fetchCurrentPlayback(true);
+          connectRef.current();
+          fetchPlaybackRef.current(true);
 
           if (!isConnecting && !isAttemptingReconnect) {
             if (
@@ -739,9 +807,9 @@ export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
                   !globalWebSocket ||
                   globalWebSocket.readyState !== WebSocket.OPEN
                 ) {
-                  connectWebSocket();
+                  connectRef.current();
                 }
-                fetchCurrentPlayback(true);
+                fetchPlaybackRef.current(true);
               }, 100);
             }
           }
@@ -754,7 +822,8 @@ export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
     return () => {
       window.removeEventListener("accessTokenUpdated", handleAccessTokenUpdate);
     };
-  }, [connectWebSocket, fetchCurrentPlayback, cleanupWebSocket]);
+    // Refs, not deps: see the note above the socket lifecycle effect.
+  }, []);
 
   return {
     currentPlayback,

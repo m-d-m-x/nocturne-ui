@@ -1,10 +1,29 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
+// Polling cadence, by what the player is actually doing.
+//
+// A fixed 15s interval was the only thing that ever noticed a pause made on the
+// phone: the dealer socket pushes play-history and resume-point telemetry, which
+// fires on a track change but NOT on a bare pause, and the PLAYER_STATE_CHANGED
+// subscription is unavailable to app tokens (401). So a pause could sit
+// unnoticed for the full interval while the progress bar carried on filling from
+// locally interpolated time.
+//
+// Polling faster only while something is playing costs less overall than the old
+// flat rate, because it stops almost entirely when idle.
+const POLL_PLAYING_MS = 2000;
+const POLL_PAUSED_MS = 8000;
+const POLL_IDLE_MS = 20000;
+
 const sharedState = {
   refreshTimeoutId: null,
   lastRefreshTime: 0,
   driftHistory: [],
   maxDriftHistory: 10,
+  // Read when a tick fires rather than captured when it is scheduled, so the
+  // cadence can change without recreating the scheduler callback - an unstable
+  // callback here is what previously churned effects elsewhere in this app.
+  pollIntervalMs: POLL_IDLE_MS,
 };
 
 export const usePlaybackProgress = (
@@ -23,8 +42,6 @@ export const usePlaybackProgress = (
   const frameSkipCounterRef = useRef(0);
 
   const scheduleNextRefresh = useCallback(() => {
-    const REFRESH_INTERVAL = 15000;
-
     if (sharedState.refreshTimeoutId) {
       clearTimeout(sharedState.refreshTimeoutId);
     }
@@ -33,7 +50,7 @@ export const usePlaybackProgress = (
       refreshPlaybackState();
       sharedState.lastRefreshTime = Date.now();
       scheduleNextRefresh();
-    }, REFRESH_INTERVAL);
+    }, sharedState.pollIntervalMs);
   }, [refreshPlaybackState]);
 
   const triggerRefresh = useCallback(() => {
@@ -92,6 +109,31 @@ export const usePlaybackProgress = (
       setDuration(currentPlayback.item?.duration_ms || 0);
     }
   }, [currentPlayback, trackId]);
+
+  // Retune the cadence to what the player is doing. When it gets shorter the
+  // pending tick is rescheduled, so starting playback does not have to wait out
+  // a 20s idle timer before the faster rate takes effect.
+  useEffect(() => {
+    const next = !currentPlayback?.item
+      ? POLL_IDLE_MS
+      : currentPlayback.is_playing
+        ? POLL_PLAYING_MS
+        : POLL_PAUSED_MS;
+
+    if (next === sharedState.pollIntervalMs) return;
+    const shortened = next < sharedState.pollIntervalMs;
+    sharedState.pollIntervalMs = next;
+    // Only fires on a transition, so this is a handful of lines per session.
+    console.log(
+      `[player] poll interval -> ${next}ms`,
+      !currentPlayback?.item
+        ? "(idle)"
+        : currentPlayback.is_playing
+          ? "(playing)"
+          : "(paused)",
+    );
+    if (shortened && sharedState.refreshTimeoutId) scheduleNextRefresh();
+  }, [currentPlayback, scheduleNextRefresh]);
 
   useEffect(() => {
     if (animationFrameRef.current) {

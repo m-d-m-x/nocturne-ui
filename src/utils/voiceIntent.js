@@ -42,9 +42,16 @@ const RULES = [
   },
   {
     type: "resume",
-    re: /^(?:play|resume|unpause|continue|go|keep going|play it|start)$/,
+    re: /^(?:play|resume|unpause|continue|go|keep going|play it|start|continue playing)$/,
   },
 ];
+
+// Liked Songs is a library collection, not a searchable item: without this
+// "play my liked songs" became a track search for the literal phrase. Checked
+// after the transport rules above, so "stop playing my liked songs" pauses, and
+// only behind the action-word gate, so the bare phrase does nothing.
+const LIKED_SONGS =
+  /\b(?:liked|saved|hearted|favou?rite)\s+(?:songs|tracks|music)\b|\bmy (?:likes|favou?rites)\b/;
 
 // "volume 40", "set the volume to 40", "turn it up to 40 percent"
 const VOLUME_SET =
@@ -134,7 +141,7 @@ function buildSearch(text) {
 
 export function classifyIntent(transcript) {
   const text = normalize(transcript);
-  if (!text) return { type: "search", args: { query: "" } };
+  if (!text) return { type: "unknown", args: { transcript: "" } };
 
   const vol = text.match(VOLUME_SET);
   if (vol) {
@@ -144,16 +151,30 @@ export function classifyIntent(transcript) {
     }
   }
 
+  // Transport commands are themselves the action word.
   for (const rule of RULES) {
     if (rule.re.test(text)) return { type: rule.type, args: {} };
+  }
+
+  // Everything past this point acts on the user's library or playback, so it
+  // requires an explicit leading verb. Without this gate any stray speech the
+  // wake word happened to catch - a snatch of conversation, the tail of a
+  // podcast - became a search and started playing something. Silence is the
+  // right response to "stairway to heaven"; "play stairway to heaven" is not
+  // ambiguous.
+  if (!SEARCH_PREFIX.test(text)) {
+    return { type: "unknown", args: { transcript: text } };
   }
 
   const stripped = text
     .replace(SEARCH_PREFIX, "")
     .replace(SEARCH_SUFFIX, "")
     .trim();
+  if (!stripped) return { type: "unknown", args: { transcript: text } };
 
-  return { type: "search", args: buildSearch(stripped || text) };
+  if (LIKED_SONGS.test(stripped)) return { type: "liked", args: {} };
+
+  return { type: "search", args: buildSearch(stripped) };
 }
 
 const CATEGORY_LABEL = {
@@ -180,6 +201,10 @@ export function intentLabel(intent) {
       return "Volume down";
     case "volume_set":
       return `Volume ${intent.args?.level ?? "?"}%`;
+    case "liked":
+      return "Playing Liked Songs";
+    case "unknown":
+      return "Didn't catch a command";
     default: {
       const label = CATEGORY_LABEL[intent.args?.category];
       return label ? `Playing ${label}` : "Searching";

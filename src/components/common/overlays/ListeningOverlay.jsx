@@ -54,10 +54,22 @@ const CLOSE_DELAY_ERROR = 2500;
 const CLOSE_DELAY_SEARCH = 600;
 const CLOSE_DELAY_COMMAND = 1200;
 
-function ListeningOverlay({ show, onClose, onCommand }) {
+/**
+ * `sessionAlreadyActive` means nocturned opened the capture itself, which is
+ * what happens when the wake word fires. The overlay must then NOT call
+ * /audio/transcribe/start - a session is already running and the daemon would
+ * reject the second one - and should show "Listening" immediately, since the
+ * user has already started speaking their command.
+ */
+function ListeningOverlay({ show, onClose, onCommand, sessionAlreadyActive }) {
   const { settings } = useSettings();
   const { apiRequest, addMessageListener, removeMessageListener } =
     useNocturned();
+
+  // Held in a ref so a change cannot retrigger the show-edge effect and open a
+  // second capture.
+  const sessionAlreadyActiveRef = useRef(sessionAlreadyActive);
+  sessionAlreadyActiveRef.current = sessionAlreadyActive;
 
   const [mounted, setMounted] = useState(show);
   const [phase, setPhase] = useState(PHASE_IDLE);
@@ -211,6 +223,15 @@ function ListeningOverlay({ show, onClose, onCommand }) {
       }
 
       vlog("intent", intent.type, intent.args, `-> "${intentLabel(intent)}"`);
+
+      // No action word, so this was speech the wake word happened to catch
+      // rather than a command. Say so and do nothing - dispatching it would
+      // turn overheard conversation into playback.
+      if (intent.type === "unknown") {
+        fail("Didn't catch a command");
+        return;
+      }
+
       setConfirmedLabel(intentLabel(intent));
       setPhase(PHASE_CONFIRMED);
       onCommandRef.current?.(intent);
@@ -290,6 +311,16 @@ function ListeningOverlay({ show, onClose, onCommand }) {
     setErrMsg("");
     setConfirmedLabel("");
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+
+    // A wake-word session is already capturing by the time we are shown; the
+    // daemon started it at the moment the phrase ended, so the command is
+    // already being recorded and there is nothing to start.
+    if (sessionAlreadyActiveRef.current) {
+      sessionActiveRef.current = true;
+      vlog("wake word opened the capture; overlay attaching to it");
+      setPhase(PHASE_LISTENING);
+      return;
+    }
 
     (async () => {
       const apiKey = (settingsRef.current.voiceSttApiKey || "").trim();
