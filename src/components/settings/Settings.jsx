@@ -17,18 +17,11 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   SettingsAccountIcon,
-  SettingsUpdateIcon,
-  SettingsCreditsIcon,
   SettingsGeneralIcon,
   SettingsPlaybackIcon,
-  SettingsSupportIcon,
   BluetoothIcon,
-  WifiMaxIcon,
 } from "../common/icons";
 import AccountInfo from "./AccountInfo";
-import SoftwareUpdate from "./SoftwareUpdate";
-import VoiceSearch from "./VoiceSearch";
-import WiFiNetworks from "./network/WiFiNetworks";
 import BluetoothDevices from "./network/BluetoothDevices";
 import { useSettings } from "../../contexts/SettingsContext";
 
@@ -72,20 +65,10 @@ const settingsStructure = {
         defaultValue: true,
       },
       {
-        id: "analytics-enabled",
-        title: "Analytics",
-        type: "toggle",
-        description:
-          "Allow Nocturne to collect anonymous usage data to help improve the app.",
-        storageKey: "analyticsEnabled",
-        defaultValue: true,
-      },
-      {
         id: "text-size",
         title: "Text Size",
         type: "textSize",
-        description:
-          "Set the size of text displayed on the screen.",
+        description: "Set the size of text displayed on the screen.",
         storageKey: "textSize",
         defaultValue: "1",
       },
@@ -99,50 +82,14 @@ const settingsStructure = {
       },
     ],
   },
-  update: {
-    title: "Software Update",
-    icon: SettingsUpdateIcon,
-    items: [
-      {
-        id: "software-update",
-        type: "custom",
-        component: SoftwareUpdate,
-      },
-    ],
-  },
   network: {
     title: "Network",
-    icon: WifiMaxIcon,
-    type: "parent",
+    icon: BluetoothIcon,
     items: [
-      {
-        id: "wifi",
-        title: "Wi-Fi",
-        icon: WifiMaxIcon,
-        subpage: {
-          type: "custom",
-          component: WiFiNetworks,
-        },
-      },
       {
         id: "bluetooth",
-        title: "Bluetooth",
-        icon: BluetoothIcon,
-        subpage: {
-          type: "custom",
-          component: BluetoothDevices,
-        },
-      },
-    ],
-  },
-  voice: {
-    title: "Voice Search",
-    icon: SettingsGeneralIcon,
-    items: [
-      {
-        id: "voice-search",
         type: "custom",
-        component: VoiceSearch,
+        component: BluetoothDevices,
       },
     ],
   },
@@ -205,395 +152,12 @@ const settingsStructure = {
       },
     ],
   },
-  support: {
-    title: "Support Nocturne",
-    icon: SettingsSupportIcon,
-  },
-  credits: {
-    title: "Credits",
-    icon: SettingsCreditsIcon,
-    type: "custom",
-    items: [
-      {
-        id: "developers",
-        title: "Developers",
-        type: "sponsors",
-        names: ["Brandon Saldan", "bbaovanc", "Dominic Frye", "shadow"],
-      },
-      {
-        id: "contributors",
-        title: "Contributors",
-        type: "sponsors",
-        names: [
-          "angelolz",
-          "EllEation",
-          "Jenner Gray",
-          "vakst",
-          "álvaro s",
-          "Justin Reynard",
-        ],
-      },
-      {
-        id: "sponsors",
-        title: "Sponsors",
-        type: "sponsors",
-        names: [
-          "Daniel Smith",
-          "Logan",
-          "paulcity",
-          "Vladdy",
-          "Nathan",
-          "SeveralZombies",
-          "DeepfakeKittens",
-          "Jenner Gray",
-          "Jesse A Kantor",
-          "Josef Halcomb",
-          "MaydaySilly",
-          "SeanCMNJ",
-          "tasteeohs",
-          "BlackFlag",
-          "Bomb",
-          "Fernando Díaz González",
-          "h2k",
-          "smugdog",
-          "Tanner",
-          "Thomas",
-          "Vonnieboo from ff.net",
-          "13EnbiesInATrenchcoat",
-          "@lukwstkn",
-          "Begouin",
-          "Bestestdev",
-          "bompo312",
-          "Christopher Cartwright",
-          "ClovisBae from reddit",
-          "D4137",
-          "DanL",
-          "Devcrowley",
-          "discord: @terbro#9956",
-          "Drevmeister-Fresh",
-          "Dustin",
-          "Ethan Pruitt",
-          "Exx-on",
-          "Garrett Webb",
-          "Gerald Lesnak II",
-          "Hyrule Villager",
-          "Jaime Sánchez",
-          "Jeff Reiner",
-          "Madison Hallowell",
-          "Morgan",
-          "nguyenkvvn",
-          "Pablo Portilla",
-          "Reuben Lo",
-          "Robert Max Womack",
-          "Sergio Navarro",
-          "SK",
-          "Tóthmárton Ákos",
-          "timothy chilinski",
-          "Tyri J Smith",
-          "Vasiliy Uchanev",
-          "Xavier Garza",
-          "23r01nf1n17y",
-          "Alfonso Morales",
-          "Archmeyvn",
-          "Austyn Tjulander",
-          "Awston Roden",
-          "@cackhanded",
-          "Cameron Williams",
-          "Cody Rees",
-          "Cowsaysmoo",
-          "Creeper_798",
-          "CyberDruid",
-          "Dave",
-          "Garry Hendry",
-          "Greg Solis",
-          "itsamanpret",
-          "Jackson Lopata",
-          "James Augustine",
-          "Jesse Lopez",
-          "jxding",
-          "Krypthos",
-          "Matthew McPheeters",
-          "mattisvensson ",
-          "Mids",
-          "mobius_j",
-          "Murdrous",
-          "Navi",
-          "rerunx5 (Alex)",
-          "scornwell",
-          "Slackticus",
-          "Tempo",
-          "Thaddeus Nagy",
-          "uktexan",
-          "Yungguap",
-          "1Vortex",
-          "_0.0.1_",
-          "abd_uhh",
-          "Abid Rasheed",
-          "Adam",
-          "Adam",
-          "Adam Duda",
-          "Adam Kunic",
-          "acousticjacob",
-          "Akhad Alimov",
-          "Akshith Gunasekaran",
-          "Alan A",
-          "Alexander Black",
-          "Alex Haseler",
-          "Ali Khodr-Ali",
-          "AlxLve",
-          "Alzitra",
-          "Andrew",
-          "Andrew J. Pafitis",
-          "Andrew Pratt",
-          "Angelolz",
-          "AnxietyPlus",
-          "Anthony E Mason",
-          "Anthony Petrella",
-          "Arturo Hernandez",
-          "Aug#5404",
-          "Austin Heiss",
-          "automathematics",
-          "Barrett Belanger",
-          "barnabas_lsq",
-          "BASTIAAN WILLEM DE VRIES",
-          "Benjamin Menendez",
-          "Brandon Fawcett",
-          "Brian Humensky",
-          "@bubbleofvelvet",
-          "BudGillett",
-          "Canaan.0",
-          "Canyon",
-          "Cameron Hyde",
-          "Carter Juckes",
-          "Casper Bruning",
-          "Cbb",
-          "Charlie Vince-Crowhurst",
-          "Chatito0s",
-          "Checked Me",
-          "CheezborgorSanwitch",
-          "Christian Klit",
-          "Christopher",
-          "Christopher Swenson",
-          "Cian",
-          "CircuitFox",
-          "Clark Hager",
-          "codex (dartmouthcollege)",
-          "Cole Conrad",
-          "Colleen Smith",
-          "Colin R.",
-          "Connor George",
-          "Cooper Johnson",
-          "Corks & Controllers",
-          "cosmicfoureyes",
-          "crakerjac",
-          "Daniel R",
-          "Dan Segal",
-          "David Bastos",
-          "David Ellis",
-          "DC",
-          "ddooee",
-          "DeanGulBairy",
-          "Derek Patterson",
-          "dhhh0729",
-          "discord: @cereal2",
-          "discord: @Forgetful19#8608",
-          "discord: @ry_az",
-          "Dom",
-          "Dominic Tesch",
-          "Doosed",
-          "Dylan",
-          "@efrondeur",
-          "Elijah Segers",
-          "Eliel Viseman",
-          "ElGibbay",
-          "ellie!",
-          "entropyofdesire",
-          "Erbay",
-          "Eric Karnes",
-          "eschar_heron on discord",
-          "Ethan Proia",
-          "Evan Garaizar",
-          "Fifthman",
-          "Franking4",
-          "Freesnöw",
-          "GenerlAce",
-          "Gerardo Ulloa",
-          "@gjcodes",
-          "gooby",
-          "Grayson WendtGeisler",
-          "gumbum3",
-          "Hannah Walters",
-          "HarpMudd",
-          "harry",
-          "I E J HERON",
-          "insane ",
-          "ISAAC J NORTON",
-          "JaCrispy",
-          "Jackson Davis",
-          "Jack Murphy",
-          "Jack Schaeffer",
-          "Jacob Winn",
-          "jagger cardenas",
-          "Jaime Gabriel",
-          "Jake Laster",
-          "Jake S",
-          "Jason Lee",
-          "Jasperjaks",
-          "Jayden",
-          "Jeremie Boudreau",
-          "Jeremy Tavener",
-          "Jesus Pena",
-          "jiddahidda",
-          "JOEL PASCAL MEYER",
-          "Joe",
-          "Joe Gerard",
-          "John Byrd",
-          "John Karoul",
-          "John M Nerney",
-          "Jonah Philippon",
-          "Jonathan Irwin",
-          "Jonathan Xayabanha",
-          "Joseph P Aguirre",
-          "Joshua Dixon",
-          "Joshua Villalta",
-          "@jrosser04",
-          "Julian Bill",
-          "Julian Gonzales",
-          "Julian Tokarev",
-          "justin473011",
-          "Justin Rogers",
-          "K. Colin Pinegar",
-          "Kaden",
-          "karltonmarx",
-          "Kelsie",
-          "Kevin Lara",
-          "Kiguy2052",
-          "Korey Sawdey",
-          "Kropka",
-          "Kyle Knowles",
-          "Liam Winters",
-          "@lillyyagirl",
-          "Linus Fraley",
-          "@lordofstick_",
-          "Louie2Lit",
-          "Louis Pietruszewski",
-          "Lucas Templin",
-          "Luis Dominguez",
-          "Luis Garcia",
-          "MANDEEP SINGH AL GURDIP SINGH",
-          "marcel",
-          "Mark Councell",
-          "Matt McKillen",
-          "Matthew r Urso",
-          "Maxb0tbeep",
-          "MC",
-          "Michael Dayah",
-          "Michael Seltzer",
-          "Michelle Joudrey",
-          "Midnight Wolf",
-          "Miguel Martinez",
-          "Miguel Martinez",
-          "Moaath",
-          "mord1991",
-          "MrPickles01",
-          "N8",
-          "Naga",
-          "Narp",
-          "@nelson8403",
-          "Nicholas Gelone",
-          "Nicholas Warner",
-          "Nickolas Schuessler",
-          "nightsleep",
-          "Nohryzon",
-          "nono9k",
-          "Ole Noetzel",
-          "ON4BCY",
-          "owen",
-          "parrot#2507",
-          "Patrick Bowden",
-          "patrickjmcd",
-          "Paul Herron",
-          "PeterPig",
-          "Phillip Deguzman",
-          "@pineappleundies",
-          "Pink",
-          "Piotr Laczynski",
-          "pocketfish",
-          "Random Weeb",
-          "Renato Oliveira",
-          "Rob",
-          "roddiemod",
-          "Rodrigo Manzano-Baltazar",
-          "runaway254",
-          "Sam Jakub",
-          "Sara Beattie",
-          "@SgtAngel777",
-          "Sean Blair",
-          "Sean Decker",
-          "Sean Kearney",
-          "seoulcialite",
-          "sergiok9505",
-          "SezyKnight",
-          "Sheel Patel",
-          "silv3rsid3up",
-          "Skatelivelearn",
-          "sneese",
-          "Softbroed",
-          "SolitaryHyena",
-          "Stanley Manalansan",
-          "Steven Snoke",
-          "sunlime",
-          "Taylor",
-          "tb",
-          "TechGeek01",
-          "therage1367 (discord)",
-          "@theflopytaco",
-          "Thomas",
-          "Timothy Membrino",
-          "titto.",
-          "tokkipan",
-          "Tong Kai Ming",
-          "Travis Stoia",
-          "@tricxtr",
-          "Ubaldo Rodriguez",
-          "Ulises",
-          "VeggiEgg",
-          "VectorGlitch",
-          "Vivyy",
-          "Vladimir Akst",
-          "Vladimir Stepakhin",
-          "walnka",
-          "wally",
-          "Wazzup",
-          "whathebuddha",
-          "whizkid98",
-          "Wicr",
-          "Will Baxter",
-          "William Bjorvik",
-          "xb",
-          "xxgreeninkxx",
-          "yayamori",
-          "Zackary Mong",
-          "Zak",
-          "Zimworf",
-          "ZonkDE",
-          "鐘宏亮",
-        ],
-      },
-    ],
-  },
 };
 
-export default function Settings({
-  accessToken,
-  onOpenDonationModal,
-  setActiveSection,
-}) {
+export default function Settings({ accessToken, setActiveSection }) {
   const navigate = useNavigate();
   const [userProfile, setUserProfile] = useState(null);
-  const [versionInfo, setVersionInfo] = useState("Loading versions...");
   const [activeParent, setActiveParent] = useState(null);
-  const [activeSubItem, setActiveSubItem] = useState(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const shouldExitToRecents = useRef(false);
   const isProcessingEscape = useRef(false);
@@ -608,16 +172,11 @@ export default function Settings({
 
   const [showMain, setShowMain] = useState(true);
   const [showParent, setShowParent] = useState(false);
-  const [showSubpage, setShowSubpage] = useState(false);
 
   const [mainClasses, setMainClasses] = useState("translate-x-0 opacity-100");
   const [parentClasses, setParentClasses] = useState(
     "translate-x-full opacity-0",
   );
-  const [subpageClasses, setSubpageClasses] = useState(
-    "translate-x-full opacity-0",
-  );
-
   const ANIMATION_DURATION = 300;
 
   useEffect(() => {
@@ -627,10 +186,6 @@ export default function Settings({
   }, []);
 
   useEffect(() => {
-    setTimeout(() => {
-      setVersionInfo("Client version: 3.0.0\nOS version: 1.0.0");
-    }, 1000);
-
     if (accessToken) {
       fetchSpotifyProfile();
     }
@@ -749,7 +304,7 @@ export default function Settings({
       console.error("Error setting text size:", error);
       updateSetting("textSize", "1");
     }
-  }
+  };
 
   const handleAction = (action) => {
     switch (action) {
@@ -768,79 +323,40 @@ export default function Settings({
       case "signOut":
         handleSignOut();
         break;
-      case "openDonation":
-        onOpenDonationModal();
-        break;
     }
   };
 
-  const navigateTo = (page, subItem = null) => {
-    if (isAnimating) return;
+  const navigateTo = (page) => {
+    // Only the main list can navigate forward, and only that branch clears
+    // isAnimating - entering here from the detail view would latch it on and
+    // freeze navigation for good. The hidden main list is still in the DOM, so
+    // a stray click can reach it.
+    if (isAnimating || !showMain) return;
     setIsAnimating(true);
     shouldExitToRecents.current = false;
 
-    if (showMain) {
-      setMainClasses("-translate-x-full opacity-0");
-      setParentClasses("translate-x-0 opacity-100");
-      setActiveParent(page);
+    setMainClasses("-translate-x-full opacity-0");
+    setParentClasses("translate-x-0 opacity-100");
+    setActiveParent(page);
 
-      setTimeout(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = 0;
-        }
-      }, ANIMATION_DURATION / 3);
+    setTimeout(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = 0;
+      }
+    }, ANIMATION_DURATION / 3);
 
-      setTimeout(() => {
-        setShowMain(false);
-        setShowParent(true);
-        setIsAnimating(false);
-
-        if (subItem) {
-          setTimeout(() => {
-            navigateTo(page, subItem);
-          }, 50);
-        }
-      }, ANIMATION_DURATION);
-    } else if (showParent && subItem) {
-      setParentClasses("-translate-x-full opacity-0");
-      setSubpageClasses("translate-x-0 opacity-100");
-      setActiveSubItem(subItem);
-
-      setTimeout(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = 0;
-        }
-      }, ANIMATION_DURATION / 3);
-
-      setTimeout(() => {
-        setShowParent(false);
-        setShowSubpage(true);
-        setIsAnimating(false);
-      }, ANIMATION_DURATION);
-    }
+    setTimeout(() => {
+      setShowMain(false);
+      setShowParent(true);
+      setIsAnimating(false);
+    }, ANIMATION_DURATION);
   };
 
   const navigateBack = () => {
     if (isAnimating) return;
     setIsAnimating(true);
 
-    if (showSubpage) {
-      setSubpageClasses("translate-x-full opacity-0");
-      setParentClasses("translate-x-0 opacity-100");
-
-      setTimeout(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = 0;
-        }
-      }, ANIMATION_DURATION / 3);
-
-      setTimeout(() => {
-        setShowSubpage(false);
-        setShowParent(true);
-        setActiveSubItem(null);
-        setIsAnimating(false);
-      }, ANIMATION_DURATION);
-    } else if (showParent) {
+    if (showParent) {
       setParentClasses("translate-x-full opacity-0");
       setMainClasses("translate-x-0 opacity-100");
 
@@ -860,11 +376,6 @@ export default function Settings({
   };
 
   const renderSettingItem = (item) => {
-    if (item.subpage) {
-      const SubpageComponent = item.subpage.component;
-      return <SubpageComponent key={item.id} />;
-    }
-
     switch (item.type) {
       case "toggle":
         return (
@@ -875,14 +386,14 @@ export default function Settings({
                 onChange={() => handleToggle(item.storageKey)}
                 className={`relative inline-flex h-11 w-20 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   settings[item.storageKey] ? "bg-white/40" : "bg-white/10"
-                  }`}
+                }`}
               >
                 <span
                   className={`pointer-events-none inline-block h-10 w-10 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
                     settings[item.storageKey]
-                    ? "translate-x-9"
-                    : "translate-x-0"
-                    }`}
+                      ? "translate-x-9"
+                      : "translate-x-0"
+                  }`}
                 />
               </Switch>
               <span className="ml-3 text-[length:calc(var(--text-scale)*32px)] font-[580] text-white tracking-tight">
@@ -943,9 +454,9 @@ export default function Settings({
                         <ListboxButton
                           className={`w-full border rounded-[14px] px-5 py-4 text-[length:calc(var(--text-scale)*24px)] text-left focus:outline-none ${
                             manualTzContinent
-                            ? "bg-white/10 border-white/10 text-white hover:bg-white/15"
-                            : "bg-white/5 border-white/10 text-white/40 cursor-not-allowed"
-                            }`}
+                              ? "bg-white/10 border-white/10 text-white hover:bg-white/15"
+                              : "bg-white/5 border-white/10 text-white/40 cursor-not-allowed"
+                          }`}
                         >
                           {manualTzContinent
                             ? manualTimezone
@@ -999,7 +510,12 @@ export default function Settings({
               <button
                 onClick={() => handleAction("textSmall")}
                 className="bg-white/10 hover:bg-white/20 w-80 transition-colors duration-200 rounded-[12px] px-6 py-3 border border-white/10 focus:outline-none"
-                style={{ backgroundColor: settings[item.storageKey] === "0.75" ? "rgb(255 255 255 / 0.4)" : "" }}
+                style={{
+                  backgroundColor:
+                    settings[item.storageKey] === "0.75"
+                      ? "rgb(255 255 255 / 0.4)"
+                      : "",
+                }}
               >
                 <span className="text-[length:calc(var(--text-scale)*26px)] font-[580] text-white tracking-tight">
                   Small
@@ -1008,7 +524,12 @@ export default function Settings({
               <button
                 onClick={() => handleAction("textMedium")}
                 className="bg-white/10 hover:bg-white/20 w-80 mt-4 transition-colors duration-200 rounded-[12px] px-6 py-3 border border-white/10 focus:outline-none"
-                style={{ backgroundColor: settings[item.storageKey] === "1" ? "rgb(255 255 255 / 0.4)" : "" }}
+                style={{
+                  backgroundColor:
+                    settings[item.storageKey] === "1"
+                      ? "rgb(255 255 255 / 0.4)"
+                      : "",
+                }}
               >
                 <span className="text-[length:calc(var(--text-scale)*32px)] font-[580] text-white tracking-tight">
                   Medium
@@ -1017,7 +538,12 @@ export default function Settings({
               <button
                 onClick={() => handleAction("textLarge")}
                 className="bg-white/10 hover:bg-white/20 w-80 mt-4 transition-colors duration-200 rounded-[12px] px-6 py-3 border border-white/10 focus:outline-none"
-                style={{ backgroundColor: settings[item.storageKey] === "1.25" ? "rgb(255 255 255 / 0.4)" : "" }}
+                style={{
+                  backgroundColor:
+                    settings[item.storageKey] === "1.25"
+                      ? "rgb(255 255 255 / 0.4)"
+                      : "",
+                }}
               >
                 <span className="text-[length:calc(var(--text-scale)*40px)] font-[580] text-white tracking-tight">
                   Large
@@ -1026,32 +552,6 @@ export default function Settings({
             </div>
             <p className="pt-4 text-[length:calc(var(--text-scale)*28px)] font-[560] text-white/60 max-w-[380px] tracking-tight">
               {item.description}
-            </p>
-          </div>
-        );
-      case "sponsors":
-        return (
-          <div key={item.id} className="mb-8">
-            <h3 className="text-[length:calc(var(--text-scale)*32px)] font-[580] text-white tracking-tight mb-4">
-              {item.title}
-            </h3>
-            <div className="space-y-2">
-              {item.names.map((name, index) => (
-                <p
-                  key={`${item.id}-${index}`}
-                  className="text-[length:calc(var(--text-scale)*28px)] font-[560] text-white/60 tracking-tight"
-                >
-                  {name}
-                </p>
-              ))}
-            </div>
-          </div>
-        );
-      case "info":
-        return (
-          <div key={item.id} className="mb-8">
-            <p className="text-[length:calc(var(--text-scale)*20px)] font-[560] text-white/60 max-w-[380px] tracking-tight whitespace-pre-line">
-              {item.id === "nocturne-version" ? versionInfo : item.description}
             </p>
           </div>
         );
@@ -1073,9 +573,7 @@ export default function Settings({
       if (isAnimating) return;
 
       if (e.key === "Escape") {
-        if (showSubpage) {
-          navigateBack();
-        } else if (showParent) {
+        if (showParent) {
           navigateBack();
         } else {
           shouldExitToRecents.current = true;
@@ -1093,7 +591,7 @@ export default function Settings({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isAnimating, showSubpage, showParent, setActiveSection]);
+  }, [isAnimating, showParent, setActiveSection]);
 
   return (
     <div
@@ -1135,13 +633,7 @@ export default function Settings({
                 {Object.entries(settingsStructure).map(([key, section]) => (
                   <button
                     key={key}
-                    onClick={() => {
-                      if (key === "support") {
-                        onOpenDonationModal();
-                      } else {
-                        navigateTo(key);
-                      }
-                    }}
+                    onClick={() => navigateTo(key)}
                     className="flex items-center justify-between w-full p-4 bg-white/10 rounded-xl hover:bg-white/20 transition-colors border border-white/10 focus:outline-none"
                     disabled={isAnimating}
                   >
@@ -1153,9 +645,7 @@ export default function Settings({
                         {section.title}
                       </span>
                     </div>
-                    {key !== "support" && (
-                      <ChevronRightIcon className="w-8 h-8 text-white/60" />
-                    )}
+                    <ChevronRightIcon className="w-8 h-8 text-white/60" />
                   </button>
                 ))}
               </div>
@@ -1184,59 +674,9 @@ export default function Settings({
               </div>
               <div className="space-y-6 mb-12">
                 {activeParent &&
-                  settingsStructure[activeParent].type === "parent" ? (
-                  <div className="space-y-4">
-                    {settingsStructure[activeParent].items?.map((subItem) => (
-                      <button
-                        key={subItem.id}
-                        onClick={() => navigateTo(activeParent, subItem)}
-                        className="flex items-center justify-between w-full p-4 bg-white/10 rounded-xl hover:bg-white/20 transition-colors border border-white/10 focus:outline-none"
-                        disabled={isAnimating}
-                      >
-                        <div className="flex items-center">
-                          <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center">
-                            <subItem.icon className="w-7 h-7 text-white" />
-                          </div>
-                          <span className="text-[length:calc(var(--text-scale)*32px)] ml-4 font-[580] text-white tracking-tight">
-                            {subItem.title}
-                          </span>
-                        </div>
-                        <ChevronRightIcon className="w-8 h-8 text-white/60" />
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  activeParent &&
                   settingsStructure[activeParent].items?.map((item) =>
                     renderSettingItem(item),
-                  )
-                )}
-              </div>
-            </div>
-
-            <div
-              className={`absolute top-0 left-0 w-full screen-transition ${subpageClasses}`}
-              style={{
-                visibility: showSubpage || isAnimating ? "visible" : "hidden",
-                touchAction: "pan-y",
-                overflowX: "hidden",
-              }}
-            >
-              <div className="flex items-center mb-4">
-                <button
-                  onClick={navigateBack}
-                  className="mr-4 focus:outline-none"
-                  style={{ background: "none" }}
-                  disabled={isAnimating}
-                >
-                  <ChevronLeftIcon className="w-8 h-8 text-white" />
-                </button>
-                <h2 className="text-[length:calc(var(--text-scale)*46px)] font-[580] text-white tracking-tight">
-                  {activeSubItem?.title}
-                </h2>
-              </div>
-              <div className="space-y-6 mb-12">
-                {activeSubItem && renderSettingItem(activeSubItem)}
+                  )}
               </div>
             </div>
           </div>

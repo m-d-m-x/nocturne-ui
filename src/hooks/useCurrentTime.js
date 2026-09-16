@@ -48,7 +48,6 @@ export function useCurrentTime() {
       if (data.status === "success" && data.timezone) {
         cachedTimezone = data.timezone;
         setTimezone(data.timezone);
-        console.log("Timezone set to:", data.timezone);
       }
     } catch (error) {
       console.error("Error fetching timezone:", error);

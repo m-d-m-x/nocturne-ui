@@ -35,6 +35,26 @@ import {
   SpeedIcon,
 } from "../common/icons";
 
+const LAST_PLAYBACK_KEY = "lastPlaybackInfo";
+
+const EMPTY_TRACK_INFO = {
+  trackName: "Not Playing",
+  artistName: "",
+  albumArt: "/images/not-playing.webp",
+  trackId: null,
+  firstArtistId: null,
+  albumId: null,
+};
+
+function readRememberedPlayback() {
+  try {
+    const raw = localStorage.getItem(LAST_PLAYBACK_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 // How long a locally-held play/pause state may disagree with the server before
 // the server wins. Long enough to cover the PUT plus a poll issued just before
 // the press; short enough that a silently failed press self-corrects.
@@ -345,8 +365,19 @@ export default function NowPlaying({
     }
   };
 
-  const trackInfo = useMemo(() => {
+  // What was playing last, so an idle session does not blank the screen.
+  //
+  // Spotify answers /me/player with 204 No Content once a paused session goes
+  // idle - the phone still shows a paused track, but the API reports nothing at
+  // all, and this screen fell back to "Not Playing" with placeholder art. The
+  // last known track is remembered (and persisted, so it survives a reboot) and
+  // shown instead. Pressing play then resumes it through the device-transfer
+  // path, which is what the blank screen made impossible.
+  const rememberedRef = useRef(null);
+
+  const liveInfo = useMemo(() => {
     const hasCurrentItem = currentPlayback?.item && !isStartingPlayback;
+    if (!hasCurrentItem) return null;
 
     const trackName = hasCurrentItem
       ? currentPlayback.item.type === "episode"
@@ -382,8 +413,32 @@ export default function NowPlaying({
     return { trackName, artistName, albumArt, trackId, firstArtistId, albumId };
   }, [currentPlayback, isStartingPlayback]);
 
+  // Persist outside the memo: writing storage while computing a value is a side
+  // effect, and this must not run on every render that reads it.
+  useEffect(() => {
+    if (!liveInfo) return;
+    rememberedRef.current = liveInfo;
+    try {
+      localStorage.setItem(LAST_PLAYBACK_KEY, JSON.stringify(liveInfo));
+    } catch {
+      // Storage being unavailable only costs us the across-reboot memory.
+    }
+  }, [liveInfo]);
+
+  const trackInfo =
+    liveInfo ??
+    rememberedRef.current ??
+    readRememberedPlayback() ??
+    EMPTY_TRACK_INFO;
+
   const { trackName, artistName, albumArt, trackId, firstArtistId, albumId } =
     trackInfo;
+
+  // Entering this screen should show current truth rather than whatever the
+  // last poll happened to leave behind.
+  useEffect(() => {
+    triggerRefresh();
+  }, [triggerRefresh]);
 
   const contextUri = currentPlayback?.context?.uri;
   const playlistId = useMemo(() => {

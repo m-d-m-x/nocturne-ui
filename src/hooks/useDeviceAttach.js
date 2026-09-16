@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { track, trackError } from "../utils/telemetry";
 
 const DEVICES_URL = "https://api.spotify.com/v1/me/player/devices";
 const TRANSFER_URL = "https://api.spotify.com/v1/me/player";
@@ -37,7 +38,7 @@ export function useDeviceAttach({ accessToken, isAuthenticated }) {
     const attach = async (devices) => {
       const active = devices.find((d) => d.is_active);
       if (active) {
-        console.log(`[devices] already active: ${active.name}`);
+        track("devices.alreadyActive", { device: active.name });
         return;
       }
       const target = devices[0];
@@ -52,16 +53,15 @@ export function useDeviceAttach({ accessToken, isAuthenticated }) {
         });
         if (cancelled) return;
         if (res.ok || res.status === 204) {
-          console.log(`[devices] attached to ${target.name}`);
+          track("devices.attached", { device: target.name });
         } else {
-          console.log(
-            `[devices] could not attach to ${target.name}:`,
-            res.status,
-          );
+          track("devices.attachRejected", {
+            device: target.name,
+            status: res.status,
+          });
         }
       } catch (err) {
-        if (!cancelled)
-          console.log("[devices] attach failed:", err?.message || err);
+        if (!cancelled) trackError("devices.attachFailed", err);
       }
     };
 
@@ -90,9 +90,7 @@ export function useDeviceAttach({ accessToken, isAuthenticated }) {
       }
 
       if (attempts >= MAX_ATTEMPTS) {
-        console.log(
-          `[devices] no Spotify device found after ${attempts} attempts; giving up`,
-        );
+        track("devices.noneFound", { attempts });
         return;
       }
       timer = setTimeout(poll, RETRY_MS);

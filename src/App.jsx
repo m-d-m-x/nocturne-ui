@@ -8,8 +8,6 @@ import Home from "./pages/Home";
 import ContentView from "./components/content/ContentView";
 import NowPlaying from "./components/player/NowPlaying";
 import DeviceSwitcherModal from "./components/player/DeviceSwitcherModal";
-import NetworkPasswordModal from "./components/common/modals/NetworkPasswordModal";
-import ConnectorQRModal from "./components/common/modals/ConnectorQRModal";
 import ButtonMappingOverlay from "./components/common/overlays/ButtonMappingOverlay";
 import NetworkBanner from "./components/common/overlays/NetworkBanner";
 import GradientBackground from "./components/common/GradientBackground";
@@ -18,19 +16,13 @@ import { useAuth } from "./hooks/useAuth";
 import { useNetwork } from "./hooks/useNetwork";
 import { useGradientState } from "./hooks/useGradientState";
 import { DeviceSwitcherContext } from "./hooks/useSpotifyPlayerControls";
-import {
-  useBluetooth,
-  useSystemUpdate,
-  useNocturneInfo,
-  useNocturned,
-} from "./hooks/useNocturned";
+import { useBluetooth, useNocturned } from "./hooks/useNocturned";
 import { useSpotifyData } from "./hooks/useSpotifyData";
 import { useDeviceAttach } from "./hooks/useDeviceAttach";
 import { useSpotifySearch } from "./hooks/useSpotifySearch";
 import SearchResultsView from "./components/content/SearchResultsView";
 import { usePlaybackProgress } from "./hooks/usePlaybackProgress";
 import { SettingsProvider } from "./contexts/SettingsContext";
-import { ConnectorProvider } from "./contexts/ConnectorContext";
 import React from "react";
 import {
   NotificationProvider,
@@ -44,19 +36,7 @@ import PowerMenuOverlay from "./components/common/overlays/PowerMenuOverlay";
 import ListeningOverlay from "./components/common/overlays/ListeningOverlay";
 import WakeWordArmer from "./components/common/WakeWordArmer";
 import { CheckIcon } from "./components/common/icons";
-import { SettingsUpdateIcon } from "./components/common/icons";
-import UpdateCheckNotification from "./components/common/notifications/UpdateCheckNotification";
-import UpdateScreen from "./components/common/UpdateScreen";
-
-export const NetworkContext = React.createContext({
-  selectedNetwork: null,
-  setSelectedNetwork: () => {},
-});
-
-export const ConnectorContext = React.createContext({
-  showConnectorModal: false,
-  setShowConnectorModal: () => {},
-});
+import { track } from "./utils/telemetry";
 
 function useGlobalButtonMapping({
   accessToken,
@@ -393,42 +373,8 @@ function useGlobalButtonMapping({
   };
 }
 
-function NotificationEffects({
-  isUpdating,
-  updateStatus,
-  activeSection,
-  handleReboot,
-  isAuthenticated,
-  isError,
-  errorMessage,
-}) {
+function NotificationEffects({ isAuthenticated }) {
   const { addNotification, removeNotification } = useNotifications();
-  const notificationShownRef = useRef(false);
-  const lastErrorMessageRef = useRef(null);
-
-  useEffect(() => {
-    if (
-      !isUpdating &&
-      updateStatus.stage === "complete" &&
-      activeSection !== "settings" &&
-      !notificationShownRef.current
-    ) {
-      notificationShownRef.current = true;
-      addNotification({
-        icon: SettingsUpdateIcon,
-        title: "Update installed",
-        description: "Nocturne was updated successfully. Restart to apply.",
-        action: { label: "Restart", onPress: handleReboot },
-      });
-    }
-  }, [
-    isUpdating,
-    updateStatus.stage,
-    activeSection,
-    addNotification,
-    handleReboot,
-  ]);
-
   const logoutNotificationIdRef = useRef(null);
 
   useEffect(() => {
@@ -449,21 +395,6 @@ function NotificationEffects({
       logoutNotificationIdRef.current = null;
     }
   }, [isAuthenticated, removeNotification]);
-
-  useEffect(() => {
-    if (isError && errorMessage) {
-      if (lastErrorMessageRef.current !== errorMessage) {
-        lastErrorMessageRef.current = errorMessage;
-        addNotification({
-          icon: SettingsUpdateIcon,
-          title: "Update failed",
-          description: errorMessage,
-        });
-      }
-    } else if (!isError) {
-      lastErrorMessageRef.current = null;
-    }
-  }, [isError, errorMessage, addNotification]);
 
   return null;
 }
@@ -505,8 +436,6 @@ function App() {
   const [viewingContent, setViewingContent] = useState(null);
   const [contentSourceSection, setContentSourceSection] = useState(null);
   const [isDeviceSwitcherOpen, setIsDeviceSwitcherOpen] = useState(false);
-  const [selectedNetwork, setSelectedNetwork] = useState(null);
-  const [showConnectorModal, setShowConnectorModal] = useState(false);
   const [playbackIntentOnDeviceSwitch, setPlaybackIntentOnDeviceSwitch] =
     useState(null);
   const [prefetchedDevices, setPrefetchedDevices] = useState(null);
@@ -579,64 +508,12 @@ function App() {
     hasEverConnectedThisSession,
   } = useNetwork();
 
-  const {
-    version: nocturneVersion,
-    serial,
-    isLoading: isInfoLoading,
-    refetch: refetchInfo,
-  } = useNocturneInfo();
-
-  const [analyticsEnabled, setAnalyticsEnabled] = useState(
-    () => localStorage.getItem("analyticsEnabled") !== "false",
-  );
-
-  useEffect(() => {
-    const handleStorageChange = () => {
-      setAnalyticsEnabled(localStorage.getItem("analyticsEnabled") !== "false");
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-    };
-  }, []);
-
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--text-scale",
       localStorage.getItem("textSize") ?? "1",
     );
   }, []);
-
-  useEffect(() => {
-    if (showLoader) return;
-    if (!isInternetConnected) return;
-    if (isInfoLoading) return;
-    if (!serial) return;
-
-    const existing = document.getElementById("analytics");
-
-    if (!analyticsEnabled) {
-      if (existing) {
-        existing.remove();
-      }
-      return;
-    }
-
-    if (existing) return;
-
-    window.umamiBeforeSend = (type, payload) => {
-      if (!payload) return false;
-      return { ...payload, id: serial };
-    };
-  }, [
-    showLoader,
-    isInternetConnected,
-    isInfoLoading,
-    serial,
-    analyticsEnabled,
-  ]);
 
   const {
     pairingRequest,
@@ -650,9 +527,6 @@ function App() {
     enableNetworking,
     stopRetrying,
   } = useBluetooth();
-
-  const { updateStatus, progress, isUpdating, isError, errorMessage } =
-    useSystemUpdate();
 
   // Shares the global socket with the other nocturned hooks; both callbacks are
   // stable, so the wake listener registers once rather than on every render.
@@ -685,7 +559,7 @@ function App() {
     // While the listening overlay is up the recording runs to completion on its
     // own, so the hardware buttons must go dead - otherwise a second dial press
     // would synthesize a play/pause toggle in the middle of a voice command.
-    isDisabled: powerMenuVisible || isUpdating || listeningOverlayVisible,
+    isDisabled: powerMenuVisible || listeningOverlayVisible,
     setListeningOverlayVisible,
   });
 
@@ -769,20 +643,6 @@ function App() {
     () => ({ openDeviceSwitcher: handleOpenDeviceSwitcher }),
     [handleOpenDeviceSwitcher],
   );
-
-  const handleNetworkClose = () => {
-    setSelectedNetwork(null);
-  };
-
-  const networkContextValue = {
-    selectedNetwork,
-    setSelectedNetwork,
-  };
-
-  const connectorContextValue = {
-    showConnectorModal,
-    setShowConnectorModal,
-  };
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -990,12 +850,8 @@ function App() {
 
     if (storedAccessToken && storedRefreshToken && isTokenValid) {
       if (initialDataLoaded) {
-        console.log("Refreshing data after auth success");
         refreshData();
       } else {
-        console.log(
-          "Skipping refresh - letting initial data load handle the fetch",
-        );
       }
     } else {
       console.warn("No valid tokens found after auth success");
@@ -1124,10 +980,7 @@ function App() {
       if (data?.type !== "voice_state") return;
       if (data.payload?.state !== "wake") return;
 
-      console.log(
-        "[voice] wake word detected",
-        `score=${(data.payload.score ?? 0).toFixed(3)}`,
-      );
+      track("voice.wake.detected", { score: data.payload.score ?? 0 });
       setWakeSessionActive(true);
       setListeningOverlayVisible(true);
     });
@@ -1266,12 +1119,8 @@ function App() {
     }
   };
 
-  const isUpdateScreenVisible =
-    isUpdating || (updateStatus.stage && updateStatus.stage !== "");
-
   const showConnectionLostScreen =
     initialCheckDone &&
-    !isUpdateScreenVisible &&
     !pairingRequest &&
     !showTetheringScreen &&
     ((initialConnectionFailed &&
@@ -1283,9 +1132,6 @@ function App() {
     initialCheckDone &&
     !showConnectionLostScreen &&
     !pairingRequest &&
-    !isUpdating &&
-    updateStatus.stage !== "download" &&
-    updateStatus.stage !== "flash" &&
     showNetworkBanner &&
     hasEverConnectedThisSession;
 
@@ -1294,8 +1140,6 @@ function App() {
     content = null;
   } else if (authIsLoading && !initialCheckDone) {
     content = null;
-  } else if (isUpdateScreenVisible) {
-    content = <UpdateScreen />;
   } else if (
     !isInternetConnected &&
     !hasEverConnectedThisSession &&
@@ -1403,124 +1247,87 @@ function App() {
 
   return (
     <NotificationProvider>
-      <NotificationEffects
-        isUpdating={isUpdating}
-        updateStatus={updateStatus}
-        activeSection={activeSection}
-        handleReboot={handleReboot}
-        isAuthenticated={isAuthenticated}
-        isError={isError}
-        errorMessage={errorMessage}
-      />
-      {isAuthenticated && !showConnectionLostScreen && !showTutorial && (
-        <UpdateCheckNotification
-          showLoader={showLoader}
-          setActiveSection={setActiveSection}
-          currentVersion={nocturneVersion}
-          isInfoLoading={isInfoLoading}
-          refetchInfo={refetchInfo}
-        />
-      )}
-      <ConnectorProvider>
-        <SettingsProvider>
-          <DeviceSwitcherContext.Provider value={deviceSwitcherContextValue}>
-            <NetworkContext.Provider value={networkContextValue}>
-              <ConnectorContext.Provider value={connectorContextValue}>
-                <Router>
-                  <FontLoader />
-                  {isAuthenticated && <WakeWordArmer />}
-                  {showLoader && (
-                    <LoadingScreen
-                      show={showLoader}
-                      onComplete={() => setShowLoader(false)}
+      <NotificationEffects isAuthenticated={isAuthenticated} />
+      <SettingsProvider>
+        <DeviceSwitcherContext.Provider value={deviceSwitcherContextValue}>
+          <Router>
+            <FontLoader />
+            {isAuthenticated && <WakeWordArmer />}
+            {showLoader && (
+              <LoadingScreen
+                show={showLoader}
+                onComplete={() => setShowLoader(false)}
+              />
+            )}
+            {!showLoader &&
+              isAuthenticated &&
+              !tokenReady &&
+              !initialTokenRefreshDone && (
+                <TokenRefreshOverlay show={!tokenReady} />
+              )}
+            <main
+              className="overflow-hidden relative min-h-screen rounded-2xl"
+              style={{
+                fontFamily: `var(--font-inter), system-ui, sans-serif`,
+                fontOpticalSizing: "auto",
+              }}
+            >
+              <GradientBackground
+                gradientState={gradientState}
+                className="bg-black"
+              />
+
+              <div className="relative z-10">
+                {content}
+                {!showTetheringScreen && !showConnectionLostScreen && (
+                  <>
+                    {pairingRequest ? (
+                      <PairingScreen
+                        pin={pairingRequest.pairingKey}
+                        isConnecting={isConnecting}
+                        onAccept={acceptPairing}
+                        onReject={denyPairing}
+                      />
+                    ) : null}
+                  </>
+                )}
+                {!displayNetworkBanner &&
+                  !showTutorial &&
+                  !powerMenuVisible &&
+                  !showConnectionLostScreen &&
+                  !showTetheringScreen && (
+                    <ListeningOverlay
+                      show={listeningOverlayVisible}
+                      onClose={handleListeningClose}
+                      onCommand={handleVoiceCommand}
+                      sessionAlreadyActive={wakeSessionActive}
                     />
                   )}
-                  {!showLoader &&
-                    isAuthenticated &&
-                    !tokenReady &&
-                    !initialTokenRefreshDone && (
-                      <TokenRefreshOverlay show={!tokenReady} />
-                    )}
-                  <main
-                    className="overflow-hidden relative min-h-screen rounded-2xl"
-                    style={{
-                      fontFamily: `var(--font-inter), var(--font-noto-sans-sc), var(--font-noto-sans-tc), var(--font-noto-serif-jp), var(--font-noto-sans-kr), var(--font-noto-naskh-ar), var(--font-noto-sans-bn), var(--font-noto-sans-dv), var(--font-noto-sans-he), var(--font-noto-sans-ta), var(--font-noto-sans-th), var(--font-noto-sans-gk), system-ui, sans-serif`,
-                      fontOpticalSizing: "auto",
-                    }}
-                  >
-                    <GradientBackground
-                      gradientState={gradientState}
-                      className="bg-black"
-                    />
-
-                    <div className="relative z-10">
-                      {content}
-                      {!isUpdateScreenVisible &&
-                        !showTetheringScreen &&
-                        !showConnectionLostScreen && (
-                          <>
-                            {pairingRequest ? (
-                              <PairingScreen
-                                pin={pairingRequest.pairingKey}
-                                isConnecting={isConnecting}
-                                onAccept={acceptPairing}
-                                onReject={denyPairing}
-                              />
-                            ) : null}
-                          </>
-                        )}
-                      {!displayNetworkBanner &&
-                        !showConnectorModal &&
-                        !showTutorial &&
-                        !powerMenuVisible &&
-                        !isUpdateScreenVisible &&
-                        !showConnectionLostScreen &&
-                        !showTetheringScreen && (
-                          <ListeningOverlay
-                            show={listeningOverlayVisible}
-                            onClose={handleListeningClose}
-                            onCommand={handleVoiceCommand}
-                            sessionAlreadyActive={wakeSessionActive}
-                          />
-                        )}
-                      <NetworkBanner visible={displayNetworkBanner} />
-                      <DeviceSwitcherModal
-                        isOpen={isDeviceSwitcherOpen}
-                        onClose={handleCloseDeviceSwitcher}
-                        accessToken={accessToken}
-                        initialDevices={prefetchedDevices}
-                      />
-                      {showConnectorModal && (
-                        <ConnectorQRModal
-                          onClose={() => setShowConnectorModal(false)}
-                        />
-                      )}
-                      <NetworkPasswordModal
-                        network={selectedNetwork}
-                        onClose={handleNetworkClose}
-                        onConnect={handleNetworkClose}
-                      />
-                      {!showTutorial && (
-                        <ButtonMappingOverlay
-                          show={showGlobalMappingOverlay}
-                          activeButton={globalActiveButton}
-                        />
-                      )}
-                      <PowerMenuOverlay
-                        show={powerMenuVisible}
-                        onShutdown={handleShutdown}
-                        onReboot={handleReboot}
-                        onClose={() => setPowerMenuVisible(false)}
-                      />
-                    </div>
-                  </main>
-                  <NotificationsContainer />
-                </Router>
-              </ConnectorContext.Provider>
-            </NetworkContext.Provider>
-          </DeviceSwitcherContext.Provider>
-        </SettingsProvider>
-      </ConnectorProvider>
+                <NetworkBanner visible={displayNetworkBanner} />
+                <DeviceSwitcherModal
+                  isOpen={isDeviceSwitcherOpen}
+                  onClose={handleCloseDeviceSwitcher}
+                  accessToken={accessToken}
+                  initialDevices={prefetchedDevices}
+                />
+                {!showTutorial && (
+                  <ButtonMappingOverlay
+                    show={showGlobalMappingOverlay}
+                    activeButton={globalActiveButton}
+                  />
+                )}
+                <PowerMenuOverlay
+                  show={powerMenuVisible}
+                  onShutdown={handleShutdown}
+                  onReboot={handleReboot}
+                  onClose={() => setPowerMenuVisible(false)}
+                />
+              </div>
+            </main>
+            <NotificationsContainer />
+          </Router>
+        </DeviceSwitcherContext.Provider>
+      </SettingsProvider>
     </NotificationProvider>
   );
 }

@@ -215,9 +215,7 @@ function useAuthState() {
 
         if (redirect?.code) {
           const storedState = sessionStorage.getItem("spotifyAuthState");
-          const storedVerifier = sessionStorage.getItem(
-            "spotifyCodeVerifier",
-          );
+          const storedVerifier = sessionStorage.getItem("spotifyCodeVerifier");
           sessionStorage.removeItem("spotifyAuthState");
           sessionStorage.removeItem("spotifyCodeVerifier");
 

@@ -6,7 +6,6 @@ import Settings from "../components/settings/Settings";
 import { useNavigation } from "../hooks/useNavigation";
 import { getPlaylistTrackCount } from "../utils/spotifyPlaylist";
 import { useSpotifyPlayerControls } from "../hooks/useSpotifyPlayerControls";
-import DonationQRModal from "../components/common/modals/DonationQRModal";
 
 export default function Home({
   accessToken,
@@ -31,11 +30,6 @@ export default function Home({
   const itemWidth = 290;
   const [newAlbumAdded, setNewAlbumAdded] = useState(false);
   const { playDJMix } = useSpotifyPlayerControls(accessToken);
-  const [showDonationModal, setShowDonationModal] = useState(false);
-
-  const handleOpenDonationModal = () => {
-    setShowDonationModal(true);
-  };
 
   const { scrollByAmount } = useNavigation({
     containerRef: scrollContainerRef,
@@ -833,7 +827,6 @@ export default function Home({
         return (
           <Settings
             accessToken={accessToken}
-            onOpenDonationModal={handleOpenDonationModal}
             setActiveSection={setActiveSection}
           />
         );
@@ -866,10 +859,6 @@ export default function Home({
           {renderContent()}
         </div>
       </div>
-
-      {showDonationModal && (
-        <DonationQRModal onClose={() => setShowDonationModal(false)} />
-      )}
     </div>
   );
 }

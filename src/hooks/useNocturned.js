@@ -151,10 +151,6 @@ const attemptWsReconnection = () => {
   wsReconnectInProgress = true;
   wsReconnectAttempts++;
 
-  console.log(
-    `WebSocket reconnection attempt ${wsReconnectAttempts}/${WS_MAX_RECONNECT_ATTEMPTS}`,
-  );
-
   wsReconnectTimer = setTimeout(() => {
     wsReconnectInProgress = false;
     setupGlobalWebSocket();
@@ -165,20 +161,14 @@ const setupGlobalWebSocket = async () => {
   if (globalWsRef && globalWsRef.readyState === WebSocket.CONNECTING) return;
 
   try {
-    console.log("Connecting to WebSocket...");
     const socket = new WebSocket(`ws://${API_BASE.replace("http://", "")}/ws`);
     globalWsRef = socket;
 
     socket.onopen = async () => {
-      console.log("Connected to WebSocket");
       cleanupWsReconnection();
 
       try {
         const networkStatus = await checkNetworkConnectivity();
-        console.log(
-          "Network status after WebSocket reconnection:",
-          networkStatus,
-        );
       } catch (error) {
         console.error(
           "Failed to check network status after WebSocket reconnection:",
@@ -192,16 +182,12 @@ const setupGlobalWebSocket = async () => {
     };
 
     socket.onclose = (event) => {
-      console.log("Disconnected from WebSocket");
       globalWsListeners.forEach(
         (listener) => listener.onClose && listener.onClose(),
       );
       globalWsRef = null;
 
       if (event.code !== 1000 && event.code !== 1001) {
-        console.log(
-          "WebSocket closed unexpectedly, attempting reconnection...",
-        );
         attemptWsReconnection();
       }
     };
@@ -285,9 +271,13 @@ export const useNocturned = () => {
           options.body = JSON.stringify(body);
         }
 
-        const response = await networkAwareRequest(() => fetch(url, options), {
-          skipNetworkCheck: true,
-        });
+        // networkAwareRequest(requestFn, retryCount, options) - this used to
+        // pass { skipNetworkCheck: true } as retryCount, which made
+        // `retryCount < MAX_RETRIES` a NaN comparison and silently disabled
+        // retries for every nocturned call. skipNetworkCheck was never a real
+        // option either; local URLs already bypass the network gate unless
+        // requireNetwork is set.
+        const response = await networkAwareRequest(() => fetch(url, options));
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
@@ -327,253 +317,6 @@ export const useNocturned = () => {
     apiRequest,
     addMessageListener,
     removeMessageListener,
-  };
-};
-
-export const useNocturneInfo = () => {
-  const [version, setVersion] = useState(null);
-  const [serial, setSerial] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const { apiRequest } = useNocturned();
-
-  const fetchInfo = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const data = await apiRequest("/info");
-
-      if (data && data.version) {
-        const cleanVersion = data.version.replace(/^v/, "");
-        setVersion(cleanVersion);
-      } else {
-        setVersion(null);
-      }
-
-      if (data && data.serial) {
-        setSerial(data.serial);
-      } else {
-        setSerial(null);
-      }
-    } catch (err) {
-      console.error("Failed to fetch info from nocturned:", err);
-      setError(err.message);
-      setVersion(null);
-      setSerial(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [apiRequest]);
-
-  useEffect(() => {
-    fetchInfo();
-  }, [fetchInfo]);
-
-  return {
-    version,
-    serial,
-    isLoading,
-    error,
-    refetch: fetchInfo,
-  };
-};
-
-export const useSystemUpdate = () => {
-  const { wsConnected, apiRequest, addMessageListener, removeMessageListener } =
-    useNocturned();
-
-  const [updateStatus, setUpdateStatus] = useState({
-    inProgress: false,
-    stage: "",
-    error: "",
-  });
-  const [progress, setProgress] = useState({
-    bytesComplete: 0,
-    bytesTotal: 0,
-    speed: 0,
-    percent: 0,
-  });
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [isError, setIsError] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const listenerIdRef = useRef(null);
-  const lastSuccessfulStageRef = useRef(null);
-  const postCommandsRef = useRef([]);
-
-  const checkUpdateStatus = useCallback(async () => {
-    try {
-      const status = await apiRequest("/update/status");
-      setUpdateStatus(status);
-      setIsUpdating(status.inProgress);
-
-      if (status.stage) {
-        lastSuccessfulStageRef.current = status.stage;
-      }
-
-      if (status.error) {
-        setIsError(true);
-        setErrorMessage(status.error);
-      } else {
-        setIsError(false);
-        setErrorMessage("");
-      }
-
-      return status;
-    } catch (error) {
-      console.error("Error checking update status:", error);
-      return null;
-    }
-  }, [apiRequest]);
-
-  const execCommands = useCallback(
-    async (commands) => {
-      if (!commands || commands.length === 0) return;
-      try {
-        await apiRequest("/device/exec", "POST", { commands });
-      } catch (err) {
-        console.error("Command execution failed:", err);
-      }
-    },
-    [apiRequest],
-  );
-
-  const startUpdate = useCallback(
-    async (imageURL, sum, commands = {}) => {
-      try {
-        const pre = commands.pre || [];
-        const post = commands.post || [];
-        if (pre.length) {
-          await execCommands(pre);
-        }
-
-        setIsUpdating(true);
-        setIsError(false);
-        setErrorMessage("");
-
-        setProgress({
-          bytesComplete: 0,
-          bytesTotal: 0,
-          speed: 0,
-          percent: 0,
-        });
-
-        const data = await apiRequest("/update", "POST", {
-          image_url: imageURL,
-          sum,
-        });
-
-        postCommandsRef.current = post;
-
-        return data;
-      } catch (error) {
-        console.error("Error starting update:", error);
-        setIsUpdating(false);
-        setIsError(true);
-        setErrorMessage(`Failed to start update: ${error.message}`);
-        return null;
-      }
-    },
-    [apiRequest, execCommands],
-  );
-
-  const handleWsMessage = useCallback(
-    (data) => {
-      if (data.type === "update_progress" && data.payload) {
-        const payload = data.payload;
-
-        if (payload.type === "progress") {
-          setIsUpdating(true);
-          setProgress({
-            bytesComplete: payload.bytes_complete,
-            bytesTotal: payload.bytes_total,
-            speed: payload.speed,
-            percent: payload.percent,
-          });
-
-          if (payload.stage) {
-            lastSuccessfulStageRef.current = payload.stage;
-            setUpdateStatus((prev) => ({
-              ...prev,
-              stage: payload.stage,
-              inProgress: true,
-            }));
-          }
-        }
-      } else if (data.type === "update_completion" && data.payload) {
-        const payload = data.payload;
-
-        if (payload.type === "completion") {
-          if (payload.success) {
-            setUpdateStatus((prev) => ({
-              ...prev,
-              inProgress: false,
-              stage: "complete",
-            }));
-            setIsUpdating(false);
-            if (postCommandsRef.current && postCommandsRef.current.length) {
-              execCommands(postCommandsRef.current);
-              postCommandsRef.current = [];
-            }
-          } else {
-            setIsError(true);
-            setErrorMessage(payload.error || "Update failed");
-            setIsUpdating(false);
-            setUpdateStatus((prev) => ({
-              ...prev,
-              inProgress: false,
-              error: payload.error || "Update failed",
-            }));
-          }
-        }
-      }
-    },
-    [checkUpdateStatus, execCommands],
-  );
-
-  useEffect(() => {
-    let statusIntervalId = null;
-
-    if (isUpdating) {
-      statusIntervalId = setInterval(() => {
-        checkUpdateStatus();
-      }, 5000);
-    }
-
-    return () => {
-      if (statusIntervalId) {
-        clearInterval(statusIntervalId);
-      }
-    };
-  }, [isUpdating, checkUpdateStatus]);
-
-  useEffect(() => {
-    const listenerId = addMessageListener("system-update", handleWsMessage);
-    listenerIdRef.current = listenerId;
-
-    checkUpdateStatus();
-
-    return () => {
-      if (listenerIdRef.current) {
-        removeMessageListener(listenerIdRef.current);
-      }
-    };
-  }, [
-    addMessageListener,
-    removeMessageListener,
-    handleWsMessage,
-    checkUpdateStatus,
-  ]);
-
-  return {
-    updateStatus,
-    progress,
-    isUpdating,
-    isError,
-    errorMessage,
-    wsConnected,
-    startUpdate,
-    checkUpdateStatus,
   };
 };
 
@@ -853,8 +596,6 @@ export const useBluetooth = () => {
         const response = await queueConnectRequest(deviceAddress);
 
         if (response.ok) {
-          console.log("Network connection established successfully");
-
           isPolling = false;
           clearInterval(networkPollRef.current);
           networkPollRef.current = null;
@@ -863,7 +604,6 @@ export const useBluetooth = () => {
         }
       } catch (error) {
         if (isPolling) {
-          console.log("Network connection attempt failed, retrying...");
         }
       }
       return false;

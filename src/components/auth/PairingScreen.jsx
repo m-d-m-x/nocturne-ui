@@ -46,7 +46,9 @@ const PairingScreen = ({ onAccept, onReject, pin, isConnecting }) => {
         </div>
 
         <div className="flex justify-center">
-          <div className="text-[length:calc(var(--text-scale)*56px)] font-bold text-white">{pin}</div>
+          <div className="text-[length:calc(var(--text-scale)*56px)] font-bold text-white">
+            {pin}
+          </div>
         </div>
       </div>
     </div>

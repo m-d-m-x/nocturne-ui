@@ -525,7 +525,6 @@ export function useSpotifyData(
 
     dataLoadingAttemptedRef.current = true;
     dataFetchingInProgressRef.current = true;
-    console.log("Starting initial data load...");
 
     setIsLoading({
       recentAlbums: true,
@@ -637,7 +636,6 @@ export function useSpotifyData(
     if (!accessToken) return;
 
     if (dataFetchingInProgressRef.current) {
-      console.log("Skipping refresh - data fetching already in progress");
       return;
     }
 
@@ -647,7 +645,6 @@ export function useSpotifyData(
     }
 
     dataFetchingInProgressRef.current = true;
-    console.log("Starting data refresh...");
 
     setIsLoading((prev) => ({
       ...prev,

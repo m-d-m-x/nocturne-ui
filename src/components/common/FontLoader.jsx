@@ -10,22 +10,13 @@ const FontLoader = () => {
 
     const loadFonts = async () => {
       try {
+        // Only Inter is preloaded. The bundled Noto faces were removed:
+        // four CJK variable fonts alone were 23.9MB on a nearly-full rootfs.
         const fontLoadPromises = [
           document.fonts.load("400 16px Inter"),
           document.fonts.load("500 16px Inter"),
           document.fonts.load("600 16px Inter"),
           document.fonts.load("700 16px Inter"),
-          document.fonts.load("400 16px 'Noto Sans SC'"),
-          document.fonts.load("400 16px 'Noto Sans TC'"),
-          document.fonts.load("400 16px 'Noto Serif JP'"),
-          document.fonts.load("400 16px 'Noto Serif KR'"),
-          document.fonts.load("400 16px 'Noto Naskh AR'"),
-          document.fonts.load("400 16px 'Noto Sans BN'"),
-          document.fonts.load("400 16px 'Noto Sans DV'"),
-          document.fonts.load("400 16px 'Noto Sans GK'"),
-          document.fonts.load("400 16px 'Noto Sans HE'"),
-          document.fonts.load("400 16px 'Noto Sans TA'"),
-          document.fonts.load("400 16px 'Noto Sans TH'"),
         ];
 
         await Promise.all(fontLoadPromises);

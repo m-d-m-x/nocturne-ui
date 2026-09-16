@@ -58,7 +58,9 @@ const NotificationBanner = ({ notification, onDismiss }) => {
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <div className="text-[length:calc(var(--text-scale)*24px)] font-[580] truncate">{title}</div>
+        <div className="text-[length:calc(var(--text-scale)*24px)] font-[580] truncate">
+          {title}
+        </div>
         {description && (
           <div
             className={

@@ -4,6 +4,7 @@ import {
   waitForNetwork,
 } from "../utils/networkAwareRequest";
 import { useNetwork } from "./useNetwork";
+import { track } from "../utils/telemetry";
 
 let globalWebSocket = null;
 let globalConnectionId = null;
@@ -563,7 +564,8 @@ export function useSpotifyPlayerState(accessToken, immediateLoad = false) {
           // hm://pusher/, the connection handshake handled above.
           //
           // Bounded by scheduleHintedRefresh, so extra frames cost nothing.
-          console.log("[player] push hint:", message.uri.slice(0, 60));
+          // Was a console.log on a hot path; the uri is recorded instead.
+          track("player.pushHint", { uri: message.uri.slice(0, 60) });
           scheduleHintedRefresh(() => fetchCurrentPlayback(true));
         }
       };

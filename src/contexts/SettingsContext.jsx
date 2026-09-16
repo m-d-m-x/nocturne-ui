@@ -32,10 +32,8 @@ export function SettingsProvider({ children }) {
     remainingTimeEnabled: getDefaultSettingValue("remainingTimeEnabled", false),
     showStatusBar: getDefaultSettingValue("showStatusBar", true),
     startWithNowPlaying: getDefaultSettingValue("startWithNowPlaying", false),
-    analyticsEnabled: getDefaultSettingValue("analyticsEnabled", true),
     autoTimezoneEnabled: getDefaultSettingValue("autoTimezoneEnabled", true),
     textSize: getTextSetting("textSize", "1"),
-    voiceSearchEnabled: getDefaultSettingValue("voiceSearchEnabled", false),
     voiceSttProvider: getTextSetting("voiceSttProvider", "groq"),
     voiceSttApiKey: getTextSetting("voiceSttApiKey", ""),
   });
@@ -61,9 +59,6 @@ export function SettingsProvider({ children }) {
           }),
           ...(config.voiceSttApiKey != null && {
             voiceSttApiKey: config.voiceSttApiKey,
-          }),
-          ...(config.voiceSearchEnabled != null && {
-            voiceSearchEnabled: config.voiceSearchEnabled,
           }),
         }));
       });

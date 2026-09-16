@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNocturned } from "../../../hooks/useNocturned";
 import { useSettings } from "../../../contexts/SettingsContext";
 import { classifyIntent, intentLabel } from "../../../utils/voiceIntent";
+import { track, trackError } from "../../../utils/telemetry";
 
 function friendlyError(raw) {
   const s = (raw || "").toLowerCase();
@@ -22,17 +23,26 @@ function friendlyError(raw) {
   return "Voice command failed";
 }
 
-/** Voice pipeline tracing - grep the device console for "[voice]". */
-function vlog(...args) {
-  console.log("[voice]", ...args);
+/**
+ * Voice pipeline tracing.
+ *
+ * Recorded rather than printed: this fires several times per command and the
+ * device is a kiosk, so the console was write-only. Enable printing in the
+ * field with localStorage.setItem("nocturneDebug", "true").
+ */
+function vlog(name, data) {
+  track(`voice.${name}`, data);
 }
 
-/** Capture levels, so a silent-looking recording can be diagnosed from the log. */
+/** Capture levels, so a silent-looking recording can be diagnosed afterwards. */
 function levels(p) {
-  if (p.peakRms === undefined) return "";
-  return `peak=${Math.round(p.peakRms)} floor=${Math.round(
-    p.floorRms ?? 0,
-  )} threshold=${Math.round(p.threshold ?? 0)} windows=${p.windows ?? 0}`;
+  if (p.peakRms === undefined) return {};
+  return {
+    peak: Math.round(p.peakRms),
+    floor: Math.round(p.floorRms ?? 0),
+    threshold: Math.round(p.threshold ?? 0),
+    windows: p.windows ?? 0,
+  };
 }
 
 const PHASE_IDLE = "idle";
@@ -134,7 +144,7 @@ function ListeningOverlay({ show, onClose, onCommand, sessionAlreadyActive }) {
   const cancelSession = useCallback(() => {
     if (!sessionActiveRef.current) return;
     sessionActiveRef.current = false;
-    vlog("cancelling capture");
+    vlog("capture.cancelling");
     apiRequest("/audio/transcribe/cancel", "POST").catch(() => {});
   }, [apiRequest]);
 
@@ -217,12 +227,12 @@ function ListeningOverlay({ show, onClose, onCommand, sessionAlreadyActive }) {
       try {
         intent = classifyIntent(text);
       } catch (err) {
-        vlog("intent classification threw", err);
+        trackError("voice.intent.failed", err);
         fail("Couldn't understand — try again");
         return;
       }
 
-      vlog("intent", intent.type, intent.args, `-> "${intentLabel(intent)}"`);
+      vlog("intent", { type: intent.type, label: intentLabel(intent) });
 
       // No action word, so this was speech the wake word happened to catch
       // rather than a command. Say so and do nothing - dispatching it would
@@ -251,25 +261,24 @@ function ListeningOverlay({ show, onClose, onCommand, sessionAlreadyActive }) {
       if (data?.type === "voice_state") {
         const p = data.payload || {};
         if (p.state === "recording") {
-          vlog("recording started");
+          vlog("recording.started");
           setPhase(PHASE_LISTENING);
         } else if (p.state === "transcribing") {
-          vlog(
-            `recording stopped (${p.reason || "?"})`,
-            `${p.durationMs ?? "?"}ms`,
-            `${p.bytes ?? "?"} bytes`,
-            levels(p),
-          );
+          vlog("recording.stopped", {
+            reason: p.reason,
+            durationMs: p.durationMs,
+            bytes: p.bytes,
+            ...levels(p),
+          });
           setPhase(PHASE_PROCESSING);
         } else if (p.state === "discarded") {
-          vlog(
-            `recording discarded (${p.reason || "?"})`,
-            `${p.durationMs ?? "?"}ms`,
-            levels(p),
-            "- nothing above the speech threshold",
-          );
+          vlog("recording.discarded", {
+            reason: p.reason,
+            durationMs: p.durationMs,
+            ...levels(p),
+          });
         } else if (p.state === "cancelled") {
-          vlog("capture cancelled");
+          vlog("capture.cancelled");
         }
         return;
       }
@@ -280,16 +289,13 @@ function ListeningOverlay({ show, onClose, onCommand, sessionAlreadyActive }) {
       const { text, error, provider, elapsedMs } = data.payload || {};
 
       if (error) {
-        vlog("transcript error:", error);
+        vlog("transcript.error", { error });
         fail(friendlyError(error), 3000);
       } else if (text) {
-        vlog(
-          `transcript via ${provider || "?"} in ${elapsedMs ?? "?"}ms:`,
-          JSON.stringify(text),
-        );
+        vlog("transcript.ok", { provider, elapsedMs, text });
         runIntent(text);
       } else {
-        vlog("transcript was empty");
+        vlog("transcript.empty");
         fail("No speech detected");
       }
     });
@@ -317,7 +323,7 @@ function ListeningOverlay({ show, onClose, onCommand, sessionAlreadyActive }) {
     // already being recorded and there is nothing to start.
     if (sessionAlreadyActiveRef.current) {
       sessionActiveRef.current = true;
-      vlog("wake word opened the capture; overlay attaching to it");
+      vlog("wake.attached");
       setPhase(PHASE_LISTENING);
       return;
     }
@@ -325,7 +331,7 @@ function ListeningOverlay({ show, onClose, onCommand, sessionAlreadyActive }) {
     (async () => {
       const apiKey = (settingsRef.current.voiceSttApiKey || "").trim();
       if (!apiKey) {
-        fail("No API key configured. Open Settings → Voice Search.", 3500);
+        fail("No speech-to-text API key configured.", 3500);
         return;
       }
 
@@ -340,7 +346,7 @@ function ListeningOverlay({ show, onClose, onCommand, sessionAlreadyActive }) {
           return;
         }
         sessionActiveRef.current = true;
-        vlog("capture start acknowledged by nocturned");
+        vlog("capture.started");
         setPhase(PHASE_LISTENING);
       } catch (err) {
         if (cancelled) return;
@@ -359,7 +365,7 @@ function ListeningOverlay({ show, onClose, onCommand, sessionAlreadyActive }) {
     if (!mounted || !budget) return;
 
     const timer = setTimeout(() => {
-      vlog(`watchdog fired in phase "${phase}" after ${budget}ms`);
+      vlog("watchdog.fired", { phase, budgetMs: budget });
       cancelSession();
       fail(
         phase === PHASE_LISTENING

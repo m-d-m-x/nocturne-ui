@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from "react";
 import { useBluetooth } from "../../hooks/useNocturned";
-import { useConnector } from "../../contexts/ConnectorContext";
 import { useNetwork } from "../../hooks/useNetwork";
 import { useAuth } from "../../hooks/useAuth";
 import { waitForStableNetwork } from "../../utils/networkAwareRequest";
@@ -15,15 +14,13 @@ const LoadingScreen = ({ show = true, onComplete }) => {
   const [tokenRefreshed, setTokenRefreshed] = useState(false);
   const onCompleteCalledRef = useRef(false);
   const { loading: connectorLoading, reconnectAttempt } = useBluetooth();
-  const { isConnectorAvailable } = useConnector();
   const { isConnected: isInternetConnected } = useNetwork();
 
   const networkCheckBypass =
     typeof localStorage !== "undefined" &&
     localStorage.getItem("networkCheckBypass") === "true";
 
-  const skipBluetoothStep =
-    isConnectorAvailable || isInternetConnected || networkCheckBypass;
+  const skipBluetoothStep = isInternetConnected || networkCheckBypass;
   const MAX_RECONNECT_ATTEMPTS = 3;
   const showReconnectMessage =
     !skipBluetoothStep &&
@@ -56,7 +53,7 @@ const LoadingScreen = ({ show = true, onComplete }) => {
           setTimeout(() => resolve("timeout"), 30000),
         );
 
-        const stablePromise = waitForStableNetwork(10000).then(() => "stable");
+        const stablePromise = waitForStableNetwork(1500).then(() => "stable");
 
         const result = await Promise.race([stablePromise, timeoutPromise]);
 
@@ -180,7 +177,7 @@ const LoadingScreen = ({ show = true, onComplete }) => {
       onCompleteCalledRef.current = true;
       setTimeout(() => {
         onComplete();
-      }, 2000);
+      }, 300);
     }
   }, [
     show,

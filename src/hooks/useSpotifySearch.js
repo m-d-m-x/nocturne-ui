@@ -45,9 +45,9 @@ export function useSpotifySearch() {
       abortRef.current = controller;
 
       const priority = types.filter((t) => BUCKET[t]);
-      const typeParam = (priority.length ? priority : DEFAULT_SEARCH_TYPES).join(
-        ",",
-      );
+      const typeParam = (
+        priority.length ? priority : DEFAULT_SEARCH_TYPES
+      ).join(",");
 
       setQuery(trimmed);
       setLoading(true);

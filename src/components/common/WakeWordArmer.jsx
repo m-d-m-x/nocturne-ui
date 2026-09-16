@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useNocturned } from "../../hooks/useNocturned";
 import { useSettings } from "../../contexts/SettingsContext";
+import { track, trackError } from "../../utils/telemetry";
 
 // A websocket reconnect races the network check inside apiRequest, which
 // rejects with "No network connection" for a moment afterwards. Without a
@@ -69,16 +70,13 @@ function WakeWordArmer() {
           // Only recorded on success, so a failed attempt is always retried.
           // Re-arming is idempotent in the daemon, so an extra call is safe.
           armedWithRef.current = signature;
-          console.log("[voice] wake word armed");
+          track("voice.wake.armed", { provider });
         })
         .catch((err) => {
           if (cancelled) return;
           attempt += 1;
           if (attempt >= MAX_ARM_ATTEMPTS) {
-            console.warn(
-              "[voice] gave up arming wake word:",
-              err?.message || err,
-            );
+            trackError("voice.wake.armFailed", err, { attempts: attempt });
             return;
           }
           timer = setTimeout(arm, ARM_RETRY_MS);

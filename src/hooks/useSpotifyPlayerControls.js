@@ -99,9 +99,6 @@ export function useSpotifyPlayerControls(
 
           if (errorData.error?.reason === "NO_ACTIVE_DEVICE" && !deviceId) {
             if (openDeviceSwitcher) {
-              console.log(
-                "No active device, opening device switcher with playback intent.",
-              );
               openDeviceSwitcher({
                 trackUriToPlay: trackUri,
                 contextUriToPlay: contextUri,

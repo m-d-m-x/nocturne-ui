@@ -4,14 +4,11 @@ import { useAuth } from "../../hooks/useAuth";
 import { useGradientState } from "../../hooks/useGradientState";
 import { useNetwork } from "../../hooks/useNetwork";
 import NocturneIcon from "../common/icons/NocturneIcon";
-import { useConnector } from "../../contexts/ConnectorContext";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-  WifiMaxIcon,
   BluetoothIcon,
 } from "../common/icons";
-import WiFiNetworks from "../settings/network/WiFiNetworks";
 import BluetoothDevices from "../settings/network/BluetoothDevices";
 import GradientBackground from "../common/GradientBackground";
 
@@ -24,9 +21,6 @@ const NetworkScreen = ({ isConnectionLost = true, onConnectionRestored }) => {
   const [activeSubItem, setActiveSubItem] = React.useState(null);
   const { isConnected: isInternetConnected, hasEverConnectedThisSession } =
     useNetwork();
-  const { isRestoringWifiNetworks, isConnectorAvailable } = useConnector();
-  const showWifiConnectMessage =
-    isConnectorAvailable && isRestoringWifiNetworks;
 
   useEffect(() => {
     let cancelled = false;
@@ -96,16 +90,9 @@ const NetworkScreen = ({ isConnectionLost = true, onConnectionRestored }) => {
     updateGradientColors(null, "auth");
   }, [updateGradientColors]);
 
+  // Bluetooth only: Wi-Fi management required Nocturne Connector on a separate
+  // Raspberry Pi, and this device reaches the network over Bluetooth tethering.
   const networkOptions = [
-    {
-      id: "wifi",
-      title: "Wi-Fi",
-      icon: WifiMaxIcon,
-      subpage: {
-        type: "custom",
-        component: WiFiNetworks,
-      },
-    },
     {
       id: "bluetooth",
       title: "Bluetooth",
@@ -238,20 +225,12 @@ const NetworkScreen = ({ isConnectionLost = true, onConnectionRestored }) => {
 
                 <div className="space-y-4">
                   <h2 className="text-5xl text-white tracking-tight font-semibold w-[24rem]">
-                    {showWifiConnectMessage
-                      ? "Connecting to Wi-Fi"
-                      : "Connection Lost"}
+                    Connection Lost
                   </h2>
-                  {showWifiConnectMessage ? (
-                    <p className="text-[length:calc(var(--text-scale)*28px)] text-white/60 tracking-tight w-[32rem]">
-                      Connecting to Wi-Fi...
-                    </p>
-                  ) : (
-                    <p className="text-[length:calc(var(--text-scale)*28px)] text-white/60 tracking-tight w-[32rem]">
-                      Enable Bluetooth Tethering and connect to "Nocturne" in
-                      your phone's settings.
-                    </p>
-                  )}
+                  <p className="text-[length:calc(var(--text-scale)*28px)] text-white/60 tracking-tight w-[32rem]">
+                    Enable Bluetooth Tethering and connect to "Nocturne" in your
+                    phone's settings.
+                  </p>
 
                   <button
                     onClick={openNetworkSettings}

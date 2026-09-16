@@ -41,138 +41,6 @@ export const interFontConfig = {
   ],
 };
 
-export const notoSansSCConfig = {
-  name: "Noto Sans SC",
-  variable: "--font-noto-sans-sc",
-  files: [
-    {
-      path: "/fonts/NotoSansSC-VF.woff2",
-      weight: "100 900",
-      style: "normal",
-    },
-  ],
-};
-
-export const notoSansTCConfig = {
-  name: "Noto Sans TC",
-  variable: "--font-noto-sans-tc",
-  files: [
-    {
-      path: "/fonts/NotoSansTC-VF.woff2",
-      weight: "100 900",
-      style: "normal",
-    },
-  ],
-};
-
-export const notoSerifJPConfig = {
-  name: "Noto Serif JP",
-  variable: "--font-noto-serif-jp",
-  files: [
-    {
-      path: "/fonts/NotoSerifJP-VF.woff2",
-      weight: "100 900",
-      style: "normal",
-    },
-  ],
-};
-
-export const notoSerifKRConfig = {
-  name: "Noto Serif KR",
-  variable: "--font-noto-sans-kr",
-  files: [
-    {
-      path: "/fonts/NotoSerifKR-VF.woff2",
-      weight: "100 900",
-      style: "normal",
-    },
-  ],
-};
-
-export const notoNaskhARConfig = {
-  name: "Noto Naskh AR",
-  variable: "--font-noto-naskh-ar",
-  files: [
-    {
-      path: "/fonts/NotoNaskhAR-VF.woff2",
-      weight: "100 900",
-      style: "normal",
-    },
-  ],
-};
-
-export const notoSansBNConfig = {
-  name: "Noto Sans BN",
-  variable: "--font-noto-sans-bn",
-  files: [
-    {
-      path: "/fonts/NotoSansBN-VF.woff2",
-      weight: "100 900",
-      style: "normal",
-    },
-  ],
-};
-
-export const notoSansDVConfig = {
-  name: "Noto Sans DV",
-  variable: "--font-noto-sans-dv",
-  files: [
-    {
-      path: "/fonts/NotoSansDV-VF.woff2",
-      weight: "100 900",
-      style: "normal",
-    },
-  ],
-};
-
-export const notoSansGKConfig = {
-  name: "Noto Sans GK",
-  variable: "--font-noto-sans-gk",
-  files: [
-    {
-      path: "/fonts/NotoSansGK-VF.woff2",
-      weight: "100 900",
-      style: "normal",
-    },
-  ],
-};
-
-export const notoSansHEConfig = {
-  name: "Noto Sans HE",
-  variable: "--font-noto-sans-he",
-  files: [
-    {
-      path: "/fonts/NotoSansHE-VF.woff2",
-      weight: "100 900",
-      style: "normal",
-    },
-  ],
-};
-
-export const notoSansTAConfig = {
-  name: "Noto Sans TA",
-  variable: "--font-noto-sans-ta",
-  files: [
-    {
-      path: "/fonts/NotoSansTA-VF.woff2",
-      weight: "100 900",
-      style: "normal",
-    },
-  ],
-};
-
-export const notoSansTHConfig = {
-  name: "Noto Sans TH",
-  variable: "--font-noto-sans-th",
-  files: [
-    {
-      path: "/fonts/NotoSansTH-VF.woff2",
-      weight: "100 900",
-      style: "normal",
-    },
-  ],
-};
-
 export function detectTextScript(text) {
   if (!text) return "latin";
 
@@ -221,49 +89,35 @@ export function getTextDirection(text) {
   };
 }
 
+// The bundled Noto faces were removed: four CJK variable fonts alone were
+// 23.9MB on a rootfs with ~20MB free. Every script now falls back to Inter,
+// which covers Latin, Greek and Cyrillic. Text in scripts Inter does not cover
+// (CJK, Arabic, Hebrew, Thai, Tamil, Bengali, Devanagari) renders with whatever
+// the system provides, which on this image means missing glyphs.
+//
+// detectTextScript and getTextDirection above are deliberately kept: RTL layout
+// for Arabic and Hebrew is correct regardless of which font draws the glyphs.
 export const fontFamilyForScript = {
   latin: `var(--font-inter)`,
-  chinese: `var(--font-noto-sans-sc), var(--font-inter)`,
-  traditionalChinese: `var(--font-noto-sans-tc), var(--font-inter)`,
-  japanese: `var(--font-noto-serif-jp), var(--font-inter)`,
-  korean: `var(--font-noto-sans-kr), var(--font-inter)`,
-  arabic: `var(--font-noto-naskh-ar), var(--font-inter)`,
-  devanagari: `var(--font-noto-sans-dv), var(--font-inter)`,
-  hebrew: `var(--font-noto-sans-he), var(--font-inter)`,
-  bengali: `var(--font-noto-sans-bn), var(--font-inter)`,
-  tamil: `var(--font-noto-sans-ta), var(--font-inter)`,
-  thai: `var(--font-noto-sans-th), var(--font-inter)`,
-  gurmukhi: `var(--font-noto-sans-gk), var(--font-inter)`,
+  chinese: `var(--font-inter)`,
+  traditionalChinese: `var(--font-inter)`,
+  japanese: `var(--font-inter)`,
+  korean: `var(--font-inter)`,
+  arabic: `var(--font-inter)`,
+  devanagari: `var(--font-inter)`,
+  hebrew: `var(--font-inter)`,
+  bengali: `var(--font-inter)`,
+  tamil: `var(--font-inter)`,
+  thai: `var(--font-inter)`,
+  gurmukhi: `var(--font-inter)`,
 };
 
 export function generateAllFontFaces() {
   return `
       ${createFontFace(interFontConfig.name, interFontConfig.files)}
-      ${createFontFace(notoSansSCConfig.name, notoSansSCConfig.files)}
-      ${createFontFace(notoSansTCConfig.name, notoSansTCConfig.files)}
-      ${createFontFace(notoSerifJPConfig.name, notoSerifJPConfig.files)}
-      ${createFontFace(notoSerifKRConfig.name, notoSerifKRConfig.files)}
-      ${createFontFace(notoNaskhARConfig.name, notoNaskhARConfig.files)}
-      ${createFontFace(notoSansBNConfig.name, notoSansBNConfig.files)}
-      ${createFontFace(notoSansDVConfig.name, notoSansDVConfig.files)}
-      ${createFontFace(notoSansGKConfig.name, notoSansGKConfig.files)}
-      ${createFontFace(notoSansHEConfig.name, notoSansHEConfig.files)}
-      ${createFontFace(notoSansTAConfig.name, notoSansTAConfig.files)}
-      ${createFontFace(notoSansTHConfig.name, notoSansTHConfig.files)}
-      
+
       :root {
         ${interFontConfig.variable}: ${interFontConfig.name}, sans-serif;
-        ${notoSansSCConfig.variable}: ${notoSansSCConfig.name}, sans-serif;
-        ${notoSansTCConfig.variable}: ${notoSansTCConfig.name}, sans-serif;
-        ${notoSerifJPConfig.variable}: ${notoSerifJPConfig.name}, serif;
-        ${notoSerifKRConfig.variable}: ${notoSerifKRConfig.name}, serif;
-        ${notoNaskhARConfig.variable}: ${notoNaskhARConfig.name}, serif;
-        ${notoSansBNConfig.variable}: ${notoSansBNConfig.name}, sans-serif;
-        ${notoSansDVConfig.variable}: ${notoSansDVConfig.name}, sans-serif;
-        ${notoSansGKConfig.variable}: ${notoSansGKConfig.name}, sans-serif;
-        ${notoSansHEConfig.variable}: ${notoSansHEConfig.name}, sans-serif;
-        ${notoSansTAConfig.variable}: ${notoSansTAConfig.name}, sans-serif;
-        ${notoSansTHConfig.variable}: ${notoSansTHConfig.name}, sans-serif;
       }
     `;
 }

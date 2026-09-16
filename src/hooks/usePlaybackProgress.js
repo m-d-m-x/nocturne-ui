@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { track } from "../utils/telemetry";
 
 // Polling cadence, by what the player is actually doing.
 //
@@ -123,15 +124,14 @@ export const usePlaybackProgress = (
     if (next === sharedState.pollIntervalMs) return;
     const shortened = next < sharedState.pollIntervalMs;
     sharedState.pollIntervalMs = next;
-    // Only fires on a transition, so this is a handful of lines per session.
-    console.log(
-      `[player] poll interval -> ${next}ms`,
-      !currentPlayback?.item
-        ? "(idle)"
+    track("player.pollInterval", {
+      ms: next,
+      state: !currentPlayback?.item
+        ? "idle"
         : currentPlayback.is_playing
-          ? "(playing)"
-          : "(paused)",
-    );
+          ? "playing"
+          : "paused",
+    });
     if (shortened && sharedState.refreshTimeoutId) scheduleNextRefresh();
   }, [currentPlayback, scheduleNextRefresh]);
 
