@@ -155,12 +155,44 @@ export function waitForNetwork(checkIntervalMs = 1000) {
   });
 }
 
+// How long to wait after the daemon confirms the link is up. The daemon has
+// already done the waiting for us (see below); this is only a short grace for
+// DNS, which can lag a freshly established tether by a moment.
+const VERIFIED_SETTLE_MS = 1500;
+
 export function waitForStableNetwork(stabilityDelayMs = 10000) {
   return new Promise((resolve) => {
     if (isBypassed()) {
       resolve();
       return;
     }
+
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+
+    // Fast path. stabilityDelayMs exists so a flapping link is not hammered the
+    // instant it reports up - but it measures THIS PAGE's uptime, which resets
+    // on every reload, so a warm reload paid the full settle for nothing. The
+    // daemon pings continuously, survives reloads, and needs five consecutive
+    // failures to declare offline, so its "online" is direct evidence that the
+    // link is already stable. Believe it instead of re-timing from zero.
+    //
+    // This is what made an account switch take 13s: the page loads in ~200ms
+    // and then sat in the settle window.
+    checkNetworkConnectivity()
+      .then((status) => {
+        if (status.isConnected && status.source === "daemon") {
+          setTimeout(finish, VERIFIED_SETTLE_MS);
+        }
+      })
+      .catch(() => {
+        // Fall through to the listener path below.
+      });
 
     let stabilityTimeout = null;
     let isWaitingForOnline = false;
@@ -169,8 +201,7 @@ export function waitForStableNetwork(stabilityDelayMs = 10000) {
     // 'online' event blocks token refresh forever.
     const hardTimeout = setTimeout(
       () => {
-        cleanup();
-        resolve();
+        finish();
       },
       Math.max(stabilityDelayMs * 3, 30000),
     );
@@ -193,10 +224,7 @@ export function waitForStableNetwork(stabilityDelayMs = 10000) {
         clearTimeout(stabilityTimeout);
       }
 
-      stabilityTimeout = setTimeout(() => {
-        cleanup();
-        resolve();
-      }, stabilityDelayMs);
+      stabilityTimeout = setTimeout(finish, stabilityDelayMs);
     };
 
     const handleOffline = () => {
@@ -209,10 +237,7 @@ export function waitForStableNetwork(stabilityDelayMs = 10000) {
     };
 
     if (isConnected && !isWaitingForOnline) {
-      stabilityTimeout = setTimeout(() => {
-        cleanup();
-        resolve();
-      }, stabilityDelayMs);
+      stabilityTimeout = setTimeout(finish, stabilityDelayMs);
     } else {
       isWaitingForOnline = true;
     }

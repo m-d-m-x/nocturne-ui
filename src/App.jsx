@@ -35,6 +35,7 @@ import LoadingScreen from "./components/common/LoadingScreen";
 import PowerMenuOverlay from "./components/common/overlays/PowerMenuOverlay";
 import ListeningOverlay from "./components/common/overlays/ListeningOverlay";
 import WakeWordArmer from "./components/common/WakeWordArmer";
+import ProfileSync from "./components/common/ProfileSync";
 import { CheckIcon } from "./components/common/icons";
 import { track } from "./utils/telemetry";
 
@@ -1253,6 +1254,7 @@ function App() {
           <Router>
             <FontLoader />
             {isAuthenticated && <WakeWordArmer />}
+            {isAuthenticated && <ProfileSync accessToken={accessToken} />}
             {showLoader && (
               <LoadingScreen
                 show={showLoader}

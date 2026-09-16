@@ -22,6 +22,7 @@ import {
   BluetoothIcon,
 } from "../common/icons";
 import AccountInfo from "./AccountInfo";
+import AccountSwitcher from "./AccountSwitcher";
 import BluetoothDevices from "./network/BluetoothDevices";
 import { useSettings } from "../../contexts/SettingsContext";
 
@@ -142,6 +143,12 @@ const settingsStructure = {
         id: "profile-info",
         title: "Profile Information",
         type: "custom",
+      },
+      {
+        id: "account-switcher",
+        title: "Accounts",
+        type: "custom",
+        component: AccountSwitcher,
       },
       {
         id: "sign-out",
